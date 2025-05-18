@@ -13,7 +13,7 @@ from compas.datastructures import Mesh
 from compas_viewer import Viewer
 
 # --- Configuration ---
-NUM_CATENARY_POINTS = 11
+NUM_CATENARY_POINTS = 21
 FLAT_Z_OFFSET = -15.0 # Initial FLAT_Z_OFFSET, will be controllable by UI
 
 # --- Global variables for UI interaction and scene management ---
@@ -113,50 +113,101 @@ def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unr
     z_plane = start_point_on_plane.z
     flat_vertices, flat_faces = [], []
     xy_plane_normal = Vector(0, 0, 1)
+
+    # Initialize distortion measurement
+    total_distortion_measure = 0.0
+    num_quads_for_distortion = 0
+
     P0_3d, Q0_3d = poly1_3d.points[0], poly2_3d.points[0]
     P_curr_flat = start_point_on_plane.copy()
     flat_vertices.append(P_curr_flat)
+
     dist_p0q0 = P0_3d.distance_to_point(Q0_3d)
     unroll_dir_xy = Vector(initial_unroll_vec.x, initial_unroll_vec.y, 0)
-    if unroll_dir_xy.length < 1e-6: unroll_dir_xy = Vector(1,0,0)
+    if unroll_dir_xy.length < 1e-6: unroll_dir_xy = Vector(1,0,0) # Default unroll direction
     else: unroll_dir_xy.unitize()
-    rung_dir_xy = Vector(-unroll_dir_xy.y, unroll_dir_xy.x, 0)
+    
+    rung_dir_xy = Vector(-unroll_dir_xy.y, unroll_dir_xy.x, 0) # Perpendicular to unroll direction
     Q_curr_flat = P_curr_flat + rung_dir_xy * dist_p0q0
-    Q_curr_flat.z = z_plane
+    Q_curr_flat.z = z_plane # Ensure it's on the plane
     flat_vertices.append(Q_curr_flat)
-    P_prev_flat = None
+
+    P_prev_flat = None # Used for choosing intersection point
+
     for j in range(N - 1):
         P_curr_3d, P_next_3d = poly1_3d.points[j], poly1_3d.points[j+1]
         Q_curr_3d, Q_next_3d = poly2_3d.points[j], poly2_3d.points[j+1]
-        d_pc_pn = P_curr_3d.distance_to_point(P_next_3d)
-        d_qc_pn = Q_curr_3d.distance_to_point(P_next_3d)
+
+        d_pc_pn = P_curr_3d.distance_to_point(P_next_3d) # Length of current segment on poly1
+        d_qc_pn = Q_curr_3d.distance_to_point(P_next_3d) # Diagonal length for first triangle
+
         intersections_P = intersection_circle_circle_xy(((P_curr_flat, xy_plane_normal), d_pc_pn), ((Q_curr_flat, xy_plane_normal), d_qc_pn))
-        if not intersections_P: return None
+        if not intersections_P: return None # Cannot triangulate
+        
         P_next_flat_chosen_xy = intersections_P[0]
         if len(intersections_P) > 1:
-            fwd_dir = unroll_dir_xy if not P_prev_flat else Vector.from_start_end(P_prev_flat, P_curr_flat).unitized()
+            # Choose point that continues "forward"
+            fwd_dir = unroll_dir_xy if P_prev_flat is None else Vector.from_start_end(P_prev_flat, P_curr_flat).unitized()
             v0 = Vector(intersections_P[0][0]-P_curr_flat.x, intersections_P[0][1]-P_curr_flat.y, 0).unitized()
             v1 = Vector(intersections_P[1][0]-P_curr_flat.x, intersections_P[1][1]-P_curr_flat.y, 0).unitized()
             P_next_flat_chosen_xy = intersections_P[0] if v0.dot(fwd_dir) >= v1.dot(fwd_dir) else intersections_P[1]
         P_next_flat = Point(P_next_flat_chosen_xy[0], P_next_flat_chosen_xy[1], z_plane)
-        d_qc_qn = Q_curr_3d.distance_to_point(Q_next_3d)
-        d_pn_qn = P_next_3d.distance_to_point(Q_next_3d)
+
+        d_qc_qn = Q_curr_3d.distance_to_point(Q_next_3d) # Length of current segment on poly2
+        d_pn_qn = P_next_3d.distance_to_point(Q_next_3d) # Length of the "rung" at the end of the segment
+
         intersections_Q = intersection_circle_circle_xy(((Q_curr_flat, xy_plane_normal), d_qc_qn), ((P_next_flat, xy_plane_normal), d_pn_qn))
-        if not intersections_Q: return None
+        if not intersections_Q: return None # Cannot triangulate
+
         Q_next_flat_chosen_xy = intersections_Q[0]
         if len(intersections_Q) > 1:
+            # Choose point that maintains similar orientation of the P-Q rung
             rung_prev_dir = Vector.from_start_end(P_curr_flat, Q_curr_flat).unitized()
+            # We want Q_next_flat such that vector P_next_flat -> Q_next_flat is similar to P_curr_flat -> Q_curr_flat
             r0 = Vector(intersections_Q[0][0]-P_next_flat.x, intersections_Q[0][1]-P_next_flat.y, 0).unitized()
             r1 = Vector(intersections_Q[1][0]-P_next_flat.x, intersections_Q[1][1]-P_next_flat.y, 0).unitized()
             Q_next_flat_chosen_xy = intersections_Q[0] if r0.dot(rung_prev_dir) >= r1.dot(rung_prev_dir) else intersections_Q[1]
         Q_next_flat = Point(Q_next_flat_chosen_xy[0], Q_next_flat_chosen_xy[1], z_plane)
-        idx_Pc, idx_Qc = 2*j, 2*j + 1
-        if idx_Pc >= len(flat_vertices) or idx_Qc >= len(flat_vertices): return None
+
+        # --- Measure distortion for the current quad ---
+        # The quad is defined by (P_curr_3d, Q_curr_3d, Q_next_3d, P_next_3d)
+        # and its flattened version (P_curr_flat, Q_curr_flat, Q_next_flat, P_next_flat)
+        # The "other" diagonal (not explicitly preserved by the triangulation method for both triangles)
+        # is P_curr_3d to Q_next_3d.
+        diag_3d_length = P_curr_3d.distance_to_point(Q_next_3d)
+        diag_flat_length = P_curr_flat.distance_to_point(Q_next_flat) # P_curr_flat is from start of this quad segment
+
+        current_quad_distortion = abs(diag_3d_length - diag_flat_length)/diag_3d_length
+        total_distortion_measure += current_quad_distortion
+        num_quads_for_distortion += 1
+        # print(f"    Quad {j}: 3D Diag P_curr-Q_next: {diag_3d_length:.4f}, Flat Diag P_curr-Q_next: {diag_flat_length:.4f}, Diff: {current_quad_distortion:.6f}")
+        # --- End Measure distortion ---
+
+        idx_Pc, idx_Qc = 2*j, 2*j + 1 # Indices of P_curr_flat, Q_curr_flat in flat_vertices
+        # These should already exist in flat_vertices
+        if idx_Pc >= len(flat_vertices) or idx_Qc >= len(flat_vertices) : return None # Should not happen
+
         flat_vertices.extend([P_next_flat, Q_next_flat])
-        idx_Pn, idx_Qn = len(flat_vertices)-2, len(flat_vertices)-1
-        flat_faces.append([idx_Pc, idx_Pn, idx_Qn, idx_Qc])
-        P_prev_flat, P_curr_flat, Q_curr_flat = P_curr_flat, P_next_flat, Q_next_flat
+        idx_Pn, idx_Qn = len(flat_vertices)-2, len(flat_vertices)-1 # Indices of newly added points
+
+        flat_faces.append([idx_Pc, idx_Pn, idx_Qn, idx_Qc]) # Define the quad face
+
+        # Update for next iteration
+        P_prev_flat = P_curr_flat # Store P_curr_flat before it's updated
+        P_curr_flat = P_next_flat
+        Q_curr_flat = Q_next_flat
+    
     if not flat_vertices or not flat_faces: return None
+
+    # Print distortion summary
+    if num_quads_for_distortion > 0:
+        average_distortion = total_distortion_measure / num_quads_for_distortion
+        print(f"  Develop_strip_to_plane Distortion Report:")
+        print(f"    Total diagonal length difference (sum over {num_quads_for_distortion} quads): {total_distortion_measure:.6f}")
+        print(f"    Average diagonal length difference per quad: {average_distortion:.6f}")
+    else:
+        print("  Develop_strip_to_plane: No quads processed for distortion measure.")
+
     return Mesh.from_vertices_and_faces(flat_vertices, flat_faces)
 
 # --- UI Update and Geometry Regeneration Functions ---
@@ -397,6 +448,7 @@ def regenerate_all_geometry():
 
 
             except Exception as e:
+                raise e
                 print(f"  ERROR creating/updating flat strip for strip {i+1}-{i+2}: {e}")
                 # If an old object existed here, it should be removed
                 if i < len(scene_objects_flat_strips) and scene_objects_flat_strips[i] is not None:
