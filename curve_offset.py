@@ -461,11 +461,7 @@ def regenerate_all_geometry():
         scene_objects_flat_strips[:] = new_scene_objs_flat_strips_temp
         
         # print(f"\n{print_prefix}--- Forcing viewer renderer update ---")
-        if viewer.renderer: 
-            viewer.renderer.update() 
-        else:
-            # print(f"{print_prefix}  Warning: viewer.renderer is None, cannot force update.")
-            pass
+        viewer.renderer.update() 
         
         # print(f"{print_prefix}GEOMETRY REGENERATION COMPLETE\n{print_prefix}{'='*50}")
     except Exception as e:
