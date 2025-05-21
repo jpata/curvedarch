@@ -8,7 +8,6 @@ blas                      2.131                  openblas    conda-forge
 blas-devel                3.9.0           31_h11c0a38_openblas    conda-forge
 brotli-python             1.0.9            py39h313beb8_9  
 bzip2                     1.0.8                h99b78c6_7    conda-forge
-c-ares                    1.19.1               h80987f9_0  
 ca-certificates           2025.4.26            hbd8a1cb_0    conda-forge
 cffi                      1.17.1                   pypi_0    pypi
 clarabel                  0.10.0           py39h16a496d_0    conda-forge
@@ -22,13 +21,16 @@ compas-tno                0.2.2                    pypi_0    pypi
 compas-view2              0.11.0                   pypi_0    pypi
 contourpy                 1.3.0                    pypi_0    pypi
 cryptography              45.0.2                   pypi_0    pypi
+cvxopt                    1.3.2            py39h08b410a_4    conda-forge
 cvxpy                     1.5.3            py39hdf13c20_0    conda-forge
 cvxpy-base                1.5.3            py39h998126f_0    conda-forge
 cycler                    0.12.1                   pypi_0    pypi
 cyipopt                   1.5.0            py39hf064bbe_3    conda-forge
 cyrus-sasl                2.1.28               h9131b1a_1  
 cython                    3.1.1                    pypi_0    pypi
+dsdp                      5.8               h9397a75_1203    conda-forge
 ecos                      2.0.14           py39h12bd487_0  
+fftw                      3.3.10          nompi_h6637ab6_110    conda-forge
 fonttools                 4.58.0                   pypi_0    pypi
 freetype                  2.13.3               h47d26ad_0  
 freetype-py               2.5.1                    pypi_0    pypi
@@ -36,6 +38,9 @@ gettext                   0.21.0               h13f89a0_1
 giflib                    5.2.2                h80987f9_0  
 glib                      2.78.4               h313beb8_0  
 glib-tools                2.78.4               h313beb8_0  
+glpk                      5.0                  h6d7a090_0    conda-forge
+gmp                       6.3.0                h7bae524_2    conda-forge
+gsl                       2.7                  h6e638da_0    conda-forge
 gst-plugins-base          1.14.1               h313beb8_1  
 gstreamer                 1.14.1               h80987f9_1  
 hyperlink                 21.0.0                   pypi_0    pypi
@@ -54,43 +59,55 @@ krb5                      1.20.1               hf3e1bf2_1
 lcms2                     2.16                 he26ebf3_1  
 lerc                      4.0.0                h313beb8_0  
 libabseil                 20250127.0      cxx17_h313beb8_0  
+libamd                    3.3.3           h5087772_7100102    conda-forge
 libblas                   3.9.0           31_h10e41b3_openblas    conda-forge
+libbtf                    2.3.2           h99b4a89_7100102    conda-forge
+libcamd                   3.3.3           h99b4a89_7100102    conda-forge
 libcblas                  3.9.0           31_hb3479ef_openblas    conda-forge
-libclang                  14.0.6          default_h1b80db6_2  
+libccolamd                3.3.4           h99b4a89_7100102    conda-forge
+libcholmod                5.3.1           hbba04d7_7100102    conda-forge
+libclang                  12.0.0          default_hc321e17_4  
 libclang13                14.0.6          default_h24352ff_2  
-libcurl                   8.12.1               hde089ae_0  
+libcolamd                 3.3.4           h99b4a89_7100102    conda-forge
+libcxsparse               4.4.1           h9e79f82_7100102    conda-forge
 libcxx                    20.1.5               ha82da77_0    conda-forge
 libdeflate                1.22                 h80987f9_0  
 libedit                   3.1.20230828         h80987f9_0  
-libev                     4.33                 h1a28f6b_1  
 libexpat                  2.7.0                h286801f_0    conda-forge
 libffi                    3.4.6                h1da3d7d_1    conda-forge
 libgfortran               5.0.0           14_2_0_h6c33f7e_103    conda-forge
 libgfortran5              14.2.0             h6c33f7e_103    conda-forge
 libglib                   2.78.4               h0a96307_0  
 libiconv                  1.16                 h80987f9_3  
+libklu                    2.3.5           h4370aa4_7100102    conda-forge
 liblapack                 3.9.0           31_hc9a63f6_openblas    conda-forge
 liblapacke                3.9.0           31_hbb7bcf8_openblas    conda-forge
+libldl                    3.3.2           h99b4a89_7100102    conda-forge
+libllvm12                 12.0.0               h12f7ac0_4  
 libllvm14                 14.0.6               h19fdd8a_4  
 liblzma                   5.8.1                h39f12f2_1    conda-forge
 liblzma-devel             5.8.1                h39f12f2_1    conda-forge
-libnghttp2                1.57.0               h62f6fdd_0  
 libopenblas               0.3.29               hea593b9_0  
 libosqp                   0.6.3                h313beb8_0  
+libparu                   1.0.0           h317a14d_7100102    conda-forge
 libpng                    1.6.39               h80987f9_0  
 libpq                     12.20                h02f6b3c_0  
 libprotobuf               5.29.3               h9f9f828_0  
 libqdldl                  0.1.7                h313beb8_0  
+librbio                   4.3.4           h99b4a89_7100102    conda-forge
 libscotch                 7.0.4                h7c38b86_5    conda-forge
+libspex                   3.2.3           h15d103f_7100102    conda-forge
+libspqr                   4.3.4           h775d698_7100102    conda-forge
 libsqlite                 3.46.0               hfb93653_0    conda-forge
-libssh2                   1.11.1               h3e2b118_0  
+libsuitesparseconfig      7.10.1          h4a8fc20_7100102    conda-forge
 libtiff                   4.7.0                h91aec0a_0  
+libumfpack                6.3.5           h7c2c975_7100102    conda-forge
 libwebp                   1.3.2                hf40cdb4_1  
 libwebp-base              1.3.2                h80987f9_1  
 libxml2                   2.10.4               h372ba2a_0  
 libxslt                   1.1.37               habca612_0  
 libzlib                   1.2.13               hfb2fe0b_6    conda-forge
-llvm-openmp               14.0.6               hc6e5704_0  
+llvm-openmp               20.1.5               hdb05f8b_0    conda-forge
 lz4-c                     1.9.4                h313beb8_1  
 markupsafe                3.0.2                    pypi_0    pypi
 matplotlib                3.7.1            py39hca03da5_1  
@@ -98,13 +115,15 @@ matplotlib-base           3.7.1            py39h78102c4_1
 metis                     5.1.0                hc377ac9_0  
 minizip                   4.0.3                ha89c15f_0  
 mosek                     11.0.20                  pypi_0    pypi
+mpfr                      4.2.1                hb693164_3    conda-forge
 mpmath                    1.3.0                    pypi_0    pypi
 mumps-include             5.7.3               h71ed9e6_10    conda-forge
 mumps-seq                 5.7.3                hab9b160_0    conda-forge
-mysql                     5.7.24               ha71a6ea_2  
 ncurses                   6.5                  h5e97a16_3    conda-forge
 networkx                  3.2.1                    pypi_0    pypi
 nomkl                     3.0                           0  
+nspr                      4.35                 h313beb8_0  
+nss                       3.89.1               h313beb8_0  
 numpy                     1.21.5           py39h42add53_3  
 numpy-base                1.21.5           py39hadd41eb_3  
 openblas                  0.3.29               hca03da5_0  
@@ -131,7 +150,7 @@ python_abi                3.9                      2_cp39    conda-forge
 qdldl-python              0.1.7            py39h46d7db6_0  
 qoco                      0.1.5                    pypi_0    pypi
 qt                        5.15.9               hca03da5_0  
-qt-main                   5.15.2               h9b4df51_9  
+qt-main                   5.15.2               ha2d02b5_7  
 qt-webengine              5.15.9               h2903aaf_7  
 qtpy                      2.2.0            py39hca03da5_0  
 qtwebkit                  5.212                h19f419d_5  
@@ -145,6 +164,7 @@ setuptools                80.1.0             pyhff2d567_0    conda-forge
 sip                       6.6.2            py39hc377ac9_0  
 six                       1.17.0           py39hca03da5_0  
 sqlite                    3.45.3               h80987f9_0  
+suitesparse               7.10.1          h3071b36_7100102    conda-forge
 sympy                     1.14.0                   pypi_0    pypi
 tk                        8.6.14               h6ba3021_0  
 toml                      0.10.2             pyhd3eb1b0_0  
