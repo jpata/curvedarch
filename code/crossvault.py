@@ -11,7 +11,7 @@ import os
 xy_span = [[0.0, 10.0], [0.0, 1.619*10.0]] # 10m x 10m vault
 thickness = 0.3
 max_rise_at_crown = 2.0 # Force it to be much flatter than a semi-circle (which would be 5.0m)
-discretisation_level = [20, 20] # For smoother surfaces, increase this
+discretisation_level = [10, 10] # For smoother surfaces, increase this
 
 # Create the flatter cross vault shape
 vault = Shape.create_flatter_crossvault(
@@ -113,7 +113,8 @@ def export_geometry_to_obj_and_json(points, obj_filepath, json_filepath, edge_in
 
     export_data = {
         "points": compas_points_data,
-        "lines": compas_lines_data
+        "lines": compas_lines_data,
+        "edge_point_indices": edge_indices if edge_indices is not None else []  # Add connectivity
     }
 
     json_directory = os.path.dirname(json_filepath)

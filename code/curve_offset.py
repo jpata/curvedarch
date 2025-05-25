@@ -1,106 +1,180 @@
 import math
 import time
+import argparse
+import sys
+import json # For loading JSON data
 import functools # For partial function application in signal connections
 
 from PySide6 import QtCore, QtWidgets
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QLabel, QDoubleSpinBox, QPushButton, QScrollArea, QDockWidget, QHBoxLayout, QSpacerItem, QSizePolicy
 
 
-from compas.geometry import Point, Polyline, Translation, Rotation, Vector, Line
+from compas.geometry import Point, Polyline, Translation, Rotation, Vector, Line, Sphere
 from compas.geometry import intersection_circle_circle_xy
 from compas.colors import Color
 from compas.datastructures import Mesh
 from compas_viewer import Viewer
 
 # --- Configuration ---
-NUM_CATENARY_POINTS = 21
+# NUM_CATENARY_POINTS = 2 # No longer used as polylines are directly from JSON
+# DEFAULT_CATENARY_HEIGHT = 0.01 # No longer used as polylines are directly from JSON
 FLAT_Z_OFFSET = -15.0 # Initial FLAT_Z_OFFSET, will be controllable by UI
 
 # --- Global variables for UI interaction and scene management ---
 viewer = None # Will be initialized later
-initial_instructions_data_tuples = [
-    (10.0, 4.0, 0.0, 0.0),   
-    (10.0, 6.0, 4.0, 5.0),  
-    (10.0, 4.0, 8.0, 10.0), 
-    (10.0, 6.0, 12.0, 5.0),
-]
 
-# Convert to list of lists for mutable parameters
-instructions_data = [list(item) for item in initial_instructions_data_tuples]
+instructions_data = [] # Will be populated from JSON: list of [Polyline_span, height]
+loaded_json_points = [] # Will store Point objects loaded from JSON
+loaded_quadrant_corner = None # Will store the calculated quadrant corner Point
 
-generated_polylines_3d = []
+generated_polylines_3d = [] # Will store the actual 3D polylines (now directly from instructions_data)
 scene_objects_3d_surfaces = [] # Will store SceneObject instances
 scene_objects_flat_strips = [] # Will store SceneObject instances
 
 # Track update state to prevent recursive calls
 is_updating = False
 
-# --- Geometry Functions (solve_for_catenary_a, create_catenary_polyline, develop_strip_to_plane) ---
-# These functions remain largely the same as your last provided version.
-# Minor adjustments might be made for clarity or to use global NUM_CATENARY_POINTS.
-
-def solve_for_catenary_a(span_radius, target_height, tol=1e-6, max_iter=100):
-    if target_height <= 1e-9: return None
-    if span_radius <= 1e-9: return None
-    def func_to_solve(a_param):
-        if abs(a_param) < 1e-9: return float('inf')
-        ratio = span_radius / a_param
-        if abs(ratio) > 700: return float('inf')
-        try: return a_param * (math.cosh(ratio) - 1) - target_height
-        except OverflowError: return float('inf')
-    a_low = max(1e-9, span_radius / 690.0)
-    a_high = span_radius**2 / (2 * target_height + 1e-12) + span_radius
-    a_high = max(a_high, span_radius * 20)
-    val_low = func_to_solve(a_low)
-    val_high = func_to_solve(a_high)
-    if val_low == float('inf'): return None
-    if val_low <= 0:
-        a_low_retry = span_radius / 700.0
-        if a_low_retry < a_low :
-            val_low_retry = func_to_solve(a_low_retry)
-            if val_low_retry > 0: a_low, val_low = a_low_retry, val_low_retry
-            else: return None
-        else: return None
-    if val_high >= 0:
-        a_high_retry = (span_radius**2 / (2 * target_height + 1e-12)) * 1000
-        val_high_retry = func_to_solve(a_high_retry)
-        if val_high_retry >=0: return None
-        else: a_high, val_high = a_high_retry, val_high_retry
-    if val_low * val_high >= 0: return None
-    for _ in range(max_iter):
-        a_mid = (a_low + a_high) / 2
-        if a_mid == a_low or a_mid == a_high: break
-        val_mid = func_to_solve(a_mid)
-        if abs(val_mid) < tol: return a_mid
-        if val_mid == float('inf'): a_low = a_mid; continue
-        if val_mid > 0: a_low = a_mid
-        else: a_high = a_mid
-    return (a_low + a_high) / 2
-
-def create_catenary_polyline(span_radius, catenary_a_param, num_points=NUM_CATENARY_POINTS):
-    if not (isinstance(span_radius, (int, float)) and span_radius > 1e-6): return None
-    if not (isinstance(catenary_a_param, (int, float)) and abs(catenary_a_param) > 1e-9): return None
-    if num_points < 2: num_points = 2
-    points = []
-    a = catenary_a_param
+# --- JSON Loading Function ---
+def load_instructions_from_json(filepath):
+    """
+    Loads catenary span definitions from a JSON file.
+    The JSON should contain:
+    - A "points" key: a list of 3D point coordinates (e.g., [[x1,y1,z1], [x2,y2,z2], ...]).
+    - An "edge_point_indices" key: a list of pairs of indices, where each pair
+      refers to indices in the "points" list. Each pair defines the start and end
+      points of a Polyline representing a catenary span.
+    """
+    global instructions_data, loaded_json_points, loaded_quadrant_corner
     try:
-        ratio_at_radius = span_radius / a
-        if abs(ratio_at_radius) > 700: return None
-        cosh_val_at_radius = math.cosh(ratio_at_radius)
-    except: return None
-    for i in range(num_points):
-        x_coeff = (i / (num_points - 1)) * 2.0 - 1.0 if num_points > 1 else 0.0
-        x_local = x_coeff * span_radius
-        try:
-            current_ratio = x_local / a
-            if abs(current_ratio) > 700:
-                if i == 0 or i == num_points -1 : return None
+        with open(filepath, 'r') as f:
+            data_dict = json.load(f)
+
+        # 1. Load and deserialize points
+        points_coords_list = data_dict.get("points")
+        if not isinstance(points_coords_list, list):
+            print(f"Error: JSON file {filepath} must contain a 'points' key with a list of point coordinates.")
+            return False
+
+        compas_points = []
+        for i, coords in enumerate(points_coords_list):
+            try:
+                if not (isinstance(coords, list) and len(coords) >= 3): # Allow for more than 3, but use first 3
+                    raise ValueError(f"Point {i} coordinates are not a list of at least 3 numbers.")
+                compas_points.append(Point(coords[0], coords[1], coords[2]))
+            except Exception as e:
+                print(f"Error: Point {i} in JSON (data: {coords}) could not be deserialized: {e}. Aborting load.")
+                return False
+        loaded_json_points = compas_points[:] # Store a copy of the loaded points
+
+        # 2. Load edge_point_indices
+        edge_indices_list = data_dict.get("edge_point_indices")
+        if not isinstance(edge_indices_list, list):
+            print(f"Error: JSON file {filepath} must contain an 'edge_point_indices' key with a list of index pairs.")
+            return False
+
+        # Define the "quadrant corner" based on all loaded points.
+        # This will be used to filter edges that are not "radiating outwards" from this corner.
+        # The corner is defined as the point with the minimum x, y, and z coordinates from the set of points.
+        quadrant_corner = compas_points[0]
+        if compas_points: # Only define if there are points
+            max_x_coord = max(p.x for p in compas_points)
+            max_y_coord = max(p.y for p in compas_points)
+            min_z_coord = min(p.z for p in compas_points)
+            quadrant_corner = Point(max_x_coord, max_y_coord, min_z_coord)
+            print(f"Info: Using point {quadrant_corner.x}, {quadrant_corner.y}, {quadrant_corner.z} as the 'quadrant corner' for edge filtering.")
+        loaded_quadrant_corner = quadrant_corner # Store the calculated quadrant corner
+        # If compas_points is empty, quadrant_corner remains None.
+        # Subsequent logic for edge processing will likely fail due to IndexError if edge_indices_list is not empty,
+        # which is handled by the try-except block for each edge.
+
+        temp_instructions = []
+        for i, edge_pair in enumerate(edge_indices_list):
+            try:
+                if not (isinstance(edge_pair, list) and len(edge_pair) == 2):
+                    raise ValueError(f"Edge {i} definition (data: {edge_pair}) is not a list of 2 indices.")
+
+                idx_start, idx_end = edge_pair
+
+                if not (isinstance(idx_start, int) and isinstance(idx_end, int)):
+                    raise ValueError(f"Edge {i} indices (data: {edge_pair}) must be integers.")
+
+                # This check also handles the case where compas_points might be empty.
+                # If len(compas_points) is 0, any valid index (e.g., 0) will fail `0 < 0`.
+                if not (0 <= idx_start < len(compas_points) and 0 <= idx_end < len(compas_points)):
+                    raise IndexError(f"Edge {i} indices [{idx_start}, {idx_end}] are out of bounds for points list (size {len(compas_points)}).")
+
+                p_start = compas_points[idx_start]
+                p_end = compas_points[idx_end]
+
+                if p_start == p_end:
+                    print(f"Warning: Edge {i} (indices [{idx_start}, {idx_end}]) connects a point to itself. Skipping this edge.")
+                    continue
+
+                # Filter: Check if the edge is radiating outwards from the defined quadrant corner.
+                # This filter is applied if a quadrant_corner was defined (i.e., compas_points was not empty).
+                # If compas_points was non-empty, quadrant_corner is a Point object.
+                if quadrant_corner:
+                    # --- Original distance-based filter (commented out) ---
+                    # dist_start_to_corner = quadrant_corner.distance_to_point(p_start)
+                    # dist_end_to_corner = quadrant_corner.distance_to_point(p_end)
+                    # # If the end point of the edge is not strictly further from the corner than the start point, skip it.
+                    # if dist_end_to_corner <= dist_start_to_corner:
+                    #     print(f"Info: Edge {i} (indices [{idx_start}, {idx_end}]) from point {idx_start} to {idx_end} "
+                    #           f"is not strictly radiating outwards from quadrant corner {quadrant_corner.x}, {quadrant_corner.y}, {quadrant_corner.z}. "
+                    #           f"(Distances: start={dist_start_to_corner:.2f}, end={dist_end_to_corner:.2f}). Skipping edge.")
+                    #     continue
+
+                    # --- New filter: XY distance from quadrant_corner's Z-axis to the infinite line of the edge ---
+                    qc_xy_tuple = (quadrant_corner.x, quadrant_corner.y)
+                    p_start_xy_tuple = (p_start.x, p_start.y)
+                    p_end_xy_tuple = (p_end.x, p_end.y)
+
+                    x0, y0 = qc_xy_tuple      # Point (quadrant_corner XY projection)
+                    x1, y1 = p_start_xy_tuple # Line point 1 (edge start XY projection)
+                    x2, y2 = p_end_xy_tuple   # Line point 2 (edge end XY projection)
+
+                    dx_line = x2 - x1
+                    dy_line = y2 - y1
+
+                    line_length_sq = dx_line * dx_line + dy_line * dy_line
+                    dist_xy_line_to_corner_axis = 0.0
+
+                    # Check if the projected start and end points of the edge are coincident in XY
+                    if line_length_sq < 1e-12: # Using a small tolerance for floating point comparison
+                        # If coincident, distance is point-to-point from quadrant_corner_xy to p_start_xy
+                        dist_xy_line_to_corner_axis = math.sqrt((x0 - x1)**2 + (y0 - y1)**2)
+                    else:
+                        # Distance from point (x0,y0) to the infinite line passing through (x1,y1) and (x2,y2)
+                        # Formula: |(x2-x1)(y1-y0) - (x1-x0)(y2-y1)| / sqrt((x2-x1)^2 + (y2-y1)^2)
+                        numerator = abs(dx_line * (y1 - y0) - (x1 - x0) * dy_line)
+                        dist_xy_line_to_corner_axis = numerator / math.sqrt(line_length_sq)
+
+                    # Define a threshold for this distance. Tune this value based on your model's scale.
+                    ALIGNMENT_THRESHOLD_XY = 0.1 # Example: Max allowed XY distance to corner's Z-axis
+
+                    if dist_xy_line_to_corner_axis > ALIGNMENT_THRESHOLD_XY:
+                        print(f"Info: Edge {i} (indices [{idx_start}, {idx_end}]) from point {idx_start} to {idx_end} "
+                              f"XY projection of infinite line (dist to corner axis: {dist_xy_line_to_corner_axis:.2f}) "
+                              f"is too far from quadrant corner's Z-axis (threshold: {ALIGNMENT_THRESHOLD_XY:.2f}). Skipping edge.")
+                        continue
+
+                span_polyline = Polyline([p_start, p_end])
+                temp_instructions.append(span_polyline) # Store the polyline directly
+            except Exception as e:
+                print(f"Warning: Edge {i} (data: {edge_pair}) in JSON could not be processed: {e}. Skipping edge.")
                 continue
-            local_z_sag = a * (cosh_val_at_radius - math.cosh(current_ratio))
-            points.append(Point(x_local, 0, local_z_sag))
-        except: continue
-    if len(points) < 2: return None
-    return Polyline(points)
+
+        instructions_data = temp_instructions
+        return True
+    except FileNotFoundError:
+        print(f"Error: JSON file {filepath} not found.")
+        return False
+    except json.JSONDecodeError as e:
+        print(f"Error: Could not decode JSON from file {filepath}: {e}")
+        return False
+    except Exception as e:
+        print(f"An unexpected error occurred while loading or parsing JSON file {filepath}: {e}")
+        return False
 
 def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unroll_vec):
     """
@@ -207,30 +281,6 @@ def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unr
     return Mesh.from_vertices_and_faces(flat_vertices, flat_faces), quad_distortions
 
 # --- UI Update and Geometry Regeneration Functions ---
-def update_catenary_param(catenary_idx, param_idx, control_widget, *args):
-    """Updates a specific parameter in instructions_data and regenerates geometry."""
-    global instructions_data, is_updating
-    
-    if is_updating:
-        return
-        
-    print(f"\n=== UPDATE CALLBACK TRIGGERED ===")
-    print(f"Catenary {catenary_idx+1}, Parameter {param_idx}")
-    print(f"Control widget value: {control_widget.value()}")
-    
-    try:
-        value = float(control_widget.value()) 
-        old_value = instructions_data[catenary_idx][param_idx]
-        instructions_data[catenary_idx][param_idx] = value
-        print(f"Changed from {old_value} to {value}")
-        
-        QtCore.QTimer.singleShot(100, regenerate_all_geometry)
-        
-    except ValueError as e:
-        print(f"ValueError in update_catenary_param: {e}")
-    except Exception as e:
-        print(f"Unexpected error in update_catenary_param: {e}")
-
 def update_flat_z_offset_param(control_widget, *args):
     """Updates the global FLAT_Z_OFFSET and regenerates geometry."""
     global FLAT_Z_OFFSET, is_updating
@@ -274,30 +324,21 @@ def regenerate_all_geometry():
 
         # 1. Generate 3D Polylines
         # print(f"{print_prefix}--- Generating 3D Polylines ---")
-        for idx, params in enumerate(instructions_data):
-            radius, height, y_offset, rotation_angle_deg_z = params
-            current_catenary_a = solve_for_catenary_a(radius, height)
-            if current_catenary_a is None:
-                generated_polylines_3d.append(None); continue
-            base_catenary = create_catenary_polyline(radius, current_catenary_a, num_points=NUM_CATENARY_POINTS)
-            if base_catenary is None:
-                generated_polylines_3d.append(None); continue
-            
-            transformed_catenary = base_catenary.copy()
-            if abs(y_offset) > 1e-6: 
-                transformed_catenary.transform(Translation.from_vector(Vector(0, y_offset, 0)))
-            if abs(rotation_angle_deg_z) > 1e-6: 
-                # Ensure rotation point is valid if polyline has points
-                rotation_origin = transformed_catenary.points[0] if transformed_catenary.points else Point(0,0,0)
-                transformed_catenary.transform(Rotation.from_axis_and_angle(Vector(0, 0, 1), math.radians(rotation_angle_deg_z), point=rotation_origin))
-            generated_polylines_3d.append(transformed_catenary)
+        # instructions_data is now a list of Polyline objects (the catenaries themselves)
+        for catenary_polyline in instructions_data:
+            if catenary_polyline and len(catenary_polyline.points) >= 2:
+                # The polylines from JSON are already in world coordinates and represent the catenary
+                generated_polylines_3d.append(catenary_polyline.copy()) # Use a copy
+            else:
+                # print(f"{print_prefix}  SKIPPED 3D Polyline: Invalid or too few points.")
+                generated_polylines_3d.append(None)
 
         num_expected_strips = max(0, len(generated_polylines_3d) - 1)
         
         # --- 2. Update or Create 3D Surface Strips ---
         # print(f"\n{print_prefix}--- Updating/Creating 3D Surfaces ({num_expected_strips} expected) ---")
         new_scene_objs_3d_surfaces_temp = [None] * num_expected_strips 
-        for i in range(num_expected_strips):
+        for i in range(2):
             poly1_3d = generated_polylines_3d[i]
             poly2_3d = generated_polylines_3d[i+1]
 
@@ -507,29 +548,12 @@ def setup_ui():
     
     main_layout.addWidget(global_group)
 
-    param_names = ["Radius", "Height", "Y-Offset", "Z-Rotation (deg)"]
-    param_ranges = [(0.1, 100.0), (0.0, 50.0), (-50.0, 50.0), (-360.0, 360.0)]
-    param_steps = [0.5, 0.5, 0.5, 5.0]
-
-    for idx, catenary_params in enumerate(instructions_data):
-        group_box = QGroupBox(f"Catenary {idx + 1}")
-        group_layout = QVBoxLayout(group_box)
-        
-        for param_idx, param_name in enumerate(param_names):
-            param_layout = QHBoxLayout()
-            label = QLabel(f"{param_name}:")
-            spinbox = QDoubleSpinBox()
-            spinbox.setRange(param_ranges[param_idx][0], param_ranges[param_idx][1])
-            spinbox.setSingleStep(param_steps[param_idx])
-            spinbox.setValue(catenary_params[param_idx])
-            spinbox.valueChanged.connect(
-                functools.partial(update_catenary_param, idx, param_idx, spinbox)
-            )
-            param_layout.addWidget(label)
-            param_layout.addWidget(spinbox)
-            group_layout.addLayout(param_layout)
-        
-        main_layout.addWidget(group_box)
+    # Individual catenary controls (like height) are removed as per the change.
+    # If you want to display information about the loaded polylines (e.g., number of polylines, lengths),
+    # you could add QLabels or a non-interactive list here.
+    # For example:
+    num_polylines_label = QLabel(f"Number of loaded polylines: {len(instructions_data)}")
+    main_layout.addWidget(num_polylines_label)
 
     spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
     main_layout.addSpacerItem(spacer)
@@ -543,25 +567,46 @@ def setup_ui():
 
 # --- Main script execution ---
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Visualize catenary curves and strips, loading initial curves from a COMPAS JSON file.")
+    parser.add_argument("json_file", help="Path to the COMPAS JSON file defining the initial catenary spans (list of Polylines).")
+    args = parser.parse_args()
+
     print("="*60)
     print("STARTING CATENARY VIEWER APPLICATION")
     print("="*60)
     
+    print(f"\nLoading instructions from JSON: {args.json_file}...")
+    if not load_instructions_from_json(args.json_file):
+        print("Failed to load instructions. Exiting.")
+        sys.exit(1)
+    print(f"Successfully loaded {len(instructions_data)} catenary definitions.")
+
     print("Creating viewer...")
     viewer = Viewer(width=1600, height=900, show_grid=True)
     print(f"Viewer created: {viewer}")
     print(f"Viewer scene: {viewer.scene}")
 
+    # Visualize loaded points and quadrant corner
+    if loaded_json_points:
+        print(f"\nVisualizing {len(loaded_json_points)} loaded points from JSON...")
+        for i, pt in enumerate(loaded_json_points):
+            viewer.scene.add(pt, name=f"LoadedPoint_{i}", color=Color.red(), size=10)
+    
+    if loaded_quadrant_corner:
+        print(f"Visualizing quadrant corner: {loaded_quadrant_corner}")
+        quadrant_corner_sphere = Sphere(radius=0.1, point=loaded_quadrant_corner) # Create a sphere
+        viewer.scene.add(quadrant_corner_sphere, name="QuadrantCornerSphere", facecolor=Color.blue(), linecolor=Color.blue().darkened(50), opacity=0.8)
+
     print("\nSetting up UI...")
-    setup_ui() 
+    # setup_ui() # Call setup_ui after viewer is initialized
     
     print("\nGenerating initial geometry...")
-    regenerate_all_geometry() 
+    regenerate_all_geometry()
 
-    print("\n" + "="*60)
-    print("LAUNCHING COMPAS VIEWER")
-    print("Try changing values in the UI panel to test updates...")
-    print("Close the viewer window to end the script.")
-    print("="*60)
-    viewer.ui.sidedock.show = True
+    # print("\n" + "="*60)
+    # print("LAUNCHING COMPAS VIEWER")
+    # print("Try changing values in the UI panel to test updates...")
+    # print("Close the viewer window to end the script.")
+    # print("="*60)
+    # viewer.ui.sidedock.visible = False
     viewer.show()
