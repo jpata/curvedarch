@@ -2,7 +2,7 @@ from compas_tno.shapes import Shape
 from compas_tno.diagrams import FormDiagram
 from compas_tno.viewers import Viewer
 from compas_tno.analysis import Analysis
-from compas_tno.utilities import export_thrust_network_to_json, export_z_pointcloud_to_json
+from compas.data import json_dump # For direct JSON writing
 import os
 
 # ----------------------------------------
@@ -31,20 +31,25 @@ form = FormDiagram.create_fan_form(xy_span=xy_span, discretisation=discretisatio
 # 3. Minimum thrust solution and visualisation
 # --------------------------------------------
 
-def export_geometry_to_obj(points, filepath, edge_indices=None):
+def export_geometry_to_obj_and_json(points, obj_filepath, json_filepath, edge_indices=None):
     """
-    Exports 3D points and optionally lines (edges) to a Wavefront OBJ file.
+    Exports 3D points and optionally lines (edges) to both a Wavefront OBJ file
+    and a COMPAS JSON file.
 
     Points are written as vertex lines (e.g., "v x y z").
     Lines are written as line elements (e.g., "l v1 v2"), using 1-based indexing.
+    In JSON, points are stored as compas.geometry.Point and lines as compas.geometry.Line.
 
     Parameters
     ----------
     points : list of list of float
         List of [x, y, z] coordinates for the point cloud.
-    filepath : str
+    obj_filepath : str
         The full path (including filename and .obj extension) where the
         OBJ file will be saved.
+    json_filepath : str
+        The full path (including filename and .json extension) where the
+        COMPAS JSON file will be saved.
     edge_indices : list of tuple of int, optional
         List of (start_index, end_index) pairs for lines, where indices are
         0-based and refer to the `points` list. Default is None.
@@ -52,50 +57,89 @@ def export_geometry_to_obj(points, filepath, edge_indices=None):
     Returns
     -------
     bool
-        True if the export was successful, False otherwise.
+        True if both OBJ and JSON exports were successful, False otherwise.
     """
     if not points:
-        print("Error: Points list is empty or None. Cannot export geometry to OBJ.")
+        print("Error: Points list is empty or None. Cannot export geometry.")
         return False
 
-    directory = os.path.dirname(filepath)
-    if directory and not os.path.exists(directory):
+    obj_export_successful = False
+    json_export_successful = False
+
+    # --- OBJ Export ---
+    obj_directory = os.path.dirname(obj_filepath)
+    if obj_directory and not os.path.exists(obj_directory):
         try:
-            os.makedirs(directory)
+            os.makedirs(obj_directory)
         except OSError as e:
-            print(f"Error creating directory {directory} for OBJ: {e}")
+            print(f"Error creating directory {obj_directory} for OBJ: {e}")
             return False
     try:
-        with open(filepath, 'w') as f_obj:
+        with open(obj_filepath, 'w') as f_obj:
             for p in points:
                 if isinstance(p, (list, tuple)) and len(p) == 3 and all(isinstance(coord, (int, float)) for coord in p):
                     f_obj.write(f"v {p[0]} {p[1]} {p[2]}\n")
-            
+
             if edge_indices:
                 for u_idx, v_idx in edge_indices:
                     # OBJ uses 1-based indexing for vertices in line definitions
                     f_obj.write(f"l {u_idx + 1} {v_idx + 1}\n")
 
-        print(f"Geometry (points and lines) successfully exported to OBJ: {filepath}")
-        return True
+        print(f"Geometry (points and lines) successfully exported to OBJ: {obj_filepath}")
+        obj_export_successful = True
     except IOError as e:
-        print(f"IOError writing OBJ to file {filepath}: {e}")
-        return False
+        print(f"IOError writing OBJ to file {obj_filepath}: {e}")
     except Exception as e:
-        print(f"An unexpected error occurred while writing OBJ to {filepath}: {e}")
-        return False
+        print(f"An unexpected error occurred while writing OBJ to {obj_filepath}: {e}")
+
+    # --- JSON Export ---
+    try:
+        from compas.geometry import Point, Line
+    except ImportError:
+        print("COMPAS geometry (Point, Line) not available for JSON export.")
+        return obj_export_successful # Return status of OBJ export only
+
+    compas_points_data = [Point(*p).to_data() for p in points]
+    compas_lines_data = []
+    if edge_indices:
+        for u_idx, v_idx in edge_indices:
+            try:
+                line = Line(points[u_idx], points[v_idx])
+                compas_lines_data.append(line.to_data())
+            except IndexError:
+                print(f"Error: Edge index out of bounds for JSON. u_idx={u_idx}, v_idx={v_idx}, num_points={len(points)}")
+            except Exception as e:
+                print(f"Error creating line for JSON from points[{u_idx}] and points[{v_idx}]: {e}")
+
+    export_data = {
+        "points": compas_points_data,
+        "lines": compas_lines_data
+    }
+
+    json_directory = os.path.dirname(json_filepath)
+    if json_directory and not os.path.exists(json_directory):
+        try:
+            os.makedirs(json_directory)
+        except OSError as e:
+            print(f"Error creating directory {json_directory} for JSON: {e}")
+            return obj_export_successful
+    try:
+        with open(json_filepath, 'w') as f_json:
+            json_dump(export_data, f_json)
+        print(f"Geometry (points and lines) successfully exported to JSON: {json_filepath}")
+        json_export_successful = True
+    except IOError as e:
+        print(f"IOError writing JSON to file {json_filepath}: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred while writing JSON to {json_filepath}: {e}")
+
+    return obj_export_successful and json_export_successful
 
 analysis = Analysis.create_minthrust_analysis(form, vault, printout=True)
 analysis.apply_selfweight()
 analysis.apply_envelope()
 analysis.set_up_optimiser()
 analysis.run()
-
-# Export the thrust network to JSON
-print("\nExporting Min Thrust Network to JSON...")
-success_json_min = export_thrust_network_to_json(form, "./thrust_min.json", indent=2)
-if success_json_min:
-    print("Min Thrust Network JSON export successful.")
 
 # Calculate center of the span for quadrant filtering
 center_x = (xy_span[0][0] + xy_span[0][1]) / 2.0
@@ -127,33 +171,22 @@ for u, v in form.edges():
         # Get the new 0-based indices for the quadrant points list
         edges_min_quadrant.append((quadrant_vkey_to_idx_min[u], quadrant_vkey_to_idx_min[v]))
 
-# Export Z-coordinate point cloud to JSON
-print("\nExporting Min Thrust Z-coordinate cloud to JSON (one quadrant)...")
-success_z_cloud_min = export_z_pointcloud_to_json(
+# Export geometry (points and lines) for the quadrant to OBJ and JSON
+print("\nExporting Min Thrust quadrant geometry to OBJ and JSON...")
+success_export_min = export_geometry_to_obj_and_json(
     points=points_z_min_quadrant,
-    filepath="./z_pointcloud_min_quadrant.json"
-)
-if success_z_cloud_min:
-    print("Min Thrust Z-coordinate cloud JSON export successful.")
-else:
-    print("Min Thrust Z-coordinate cloud JSON export failed.")
-
-# Export Z-coordinate point cloud to OBJ
-print("\nExporting Min Thrust geometry (points and lines) to OBJ (one quadrant)...")
-success_z_cloud_obj_min = export_geometry_to_obj(
-    points=points_z_min_quadrant,
-    filepath="./min_thrust_quadrant_geometry.obj",
+    obj_filepath="./min_thrust_quadrant_geometry.obj",
+    json_filepath="./min_thrust_quadrant_geometry.json",
     edge_indices=edges_min_quadrant
 )
-if not success_z_cloud_obj_min:
-    print("Min Thrust geometry OBJ export (quadrant) failed.")
+if success_export_min:
+    print("Min Thrust quadrant geometry export successful.")
+else:
+    print("Min Thrust quadrant geometry export failed for OBJ and/or JSON.")
 
 # view = Viewer(form) # You can still view it with COMPAS viewer if not in Blender
 # view.settings['scale.reactions'] = 0.001
 # view.show_solution()
-
-# Export the thrust network
-success = export_thrust_network_to_json(form, "./thrust_min.json", indent=2)
 
 # # --------------------------------------------
 # # 4. Maximum thrust solution and visualisation
@@ -163,12 +196,6 @@ analysis.apply_selfweight()
 analysis.apply_envelope()
 analysis.set_up_optimiser()
 analysis.run()
-
-# Export the thrust network to JSON
-print("\nExporting Max Thrust Network to JSON...")
-success_json_max = export_thrust_network_to_json(form, "./thrust_max.json", indent=2)
-if success_json_max:
-    print("Max Thrust Network JSON export successful.")
 
 # Extract points for Z-coordinate point cloud export
 print("\nExtracting points for Max Thrust Z-coordinate cloud...")
@@ -195,26 +222,18 @@ for u, v in form.edges():
     if u in quadrant_vkey_to_idx_max and v in quadrant_vkey_to_idx_max:
         edges_max_quadrant.append((quadrant_vkey_to_idx_max[u], quadrant_vkey_to_idx_max[v]))
 
-# Export Z-coordinate point cloud to JSON
-print("\nExporting Max Thrust Z-coordinate cloud to JSON (one quadrant)...")
-success_z_cloud_max = export_z_pointcloud_to_json(
+# Export geometry (points and lines) for the quadrant to OBJ and JSON
+print("\nExporting Max Thrust quadrant geometry to OBJ and JSON...")
+success_export_max = export_geometry_to_obj_and_json(
     points=points_z_max_quadrant,
-    filepath="./z_pointcloud_max_quadrant.json"
-)
-if success_z_cloud_max:
-    print("Max Thrust Z-coordinate cloud JSON export successful.")
-else:
-    print("Max Thrust Z-coordinate cloud JSON export failed.")
-
-# Export Z-coordinate point cloud to OBJ
-print("\nExporting Max Thrust geometry (points and lines) to OBJ (one quadrant)...")
-success_z_cloud_obj_max = export_geometry_to_obj(
-    points=points_z_max_quadrant,
-    filepath="./max_thrust_quadrant_geometry.obj",
+    obj_filepath="./max_thrust_quadrant_geometry.obj",
+    json_filepath="./max_thrust_quadrant_geometry.json",
     edge_indices=edges_max_quadrant
 )
-if not success_z_cloud_obj_max:
-    print("Max Thrust geometry OBJ export (quadrant) failed.")
+if success_export_max:
+    print("Max Thrust quadrant geometry export successful.")
+else:
+    print("Max Thrust quadrant geometry export failed for OBJ and/or JSON.")
 # view = Viewer(form) # You can still view it with COMPAS viewer if not in Blender
 # view.settings['scale.reactions'] = 0.001
 # view.show_solution()
