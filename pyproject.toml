@@ -23,6 +23,9 @@ dependencies = [
     "compas_tna",
     "cvxpy",
     "compas_viewer",
+    "matplotlib",
     "compas_tno @ git+https://github.com/BlockResearchGroup/compas_tno.git@main",
 ]
 
+[tool.setuptools]
+packages = ["code"]
