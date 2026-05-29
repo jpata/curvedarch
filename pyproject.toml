@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "curvedarch"
+version = "1.0.0"
+authors = [
+  { name = "Joosep Pata", email = "joosep.pata@cern.ch" },
+]
+description = ""
+readme = "README.md"
+requires-python = "==3.11.*"
+license = { text = "Apache Software License" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "compas",
+    "compas_tna",
+    "cvxpy",
+    "compas_viewer",
+    "compas_tno @ git+https://github.com/BlockResearchGroup/compas_tno.git@main",
+]
+
