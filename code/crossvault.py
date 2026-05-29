@@ -1,6 +1,5 @@
-from compas_tno.shapes import Shape
-from compas_tno.diagrams import FormDiagram
-from compas_tno.viewers import Viewer
+from compas_tna.envelope import PointedVaultEnvelope
+from compas_tna.diagrams import FormDiagram
 from compas_tno.analysis import Analysis
 from compas.data import json_dump # For direct JSON writing
 import os
@@ -14,18 +13,19 @@ max_rise_at_crown = 2.0 # Force it to be much flatter than a semi-circle (which 
 discretisation_level = [10, 10] # For smoother surfaces, increase this
 
 # Create the flatter cross vault shape
-vault = Shape.create_flatter_crossvault(
-    xy_span=xy_span,
-    thk=thickness,
-    desired_max_rise=max_rise_at_crown,
-    discretisation=discretisation_level
+vault = PointedVaultEnvelope(
+    x_span=xy_span[0],
+    y_span=xy_span[1],
+    thickness=thickness,
+    hc=max_rise_at_crown,
+    n=discretisation_level[0]
 )
 
 # ----------------------------------------
 # 2. Form diagram geometric definition
 # ----------------------------------------
 discretisation = 10
-form = FormDiagram.create_fan_form(xy_span=xy_span, discretisation=discretisation)
+form = FormDiagram.create_fan(x_span=xy_span[0], y_span=xy_span[1], n_fans=discretisation, n_hoops=discretisation)
 
 # --------------------------------------------
 # 3. Minimum thrust solution and visualisation
@@ -99,13 +99,13 @@ def export_geometry_to_obj_and_json(points, obj_filepath, json_filepath, edge_in
         print("COMPAS geometry (Point, Line) not available for JSON export.")
         return obj_export_successful # Return status of OBJ export only
 
-    compas_points_data = [Point(*p).to_data() for p in points]
+    compas_points_data = [Point(*p) for p in points]
     compas_lines_data = []
     if edge_indices:
         for u_idx, v_idx in edge_indices:
             try:
                 line = Line(points[u_idx], points[v_idx])
-                compas_lines_data.append(line.to_data())
+                compas_lines_data.append(line)
             except IndexError:
                 print(f"Error: Edge index out of bounds for JSON. u_idx={u_idx}, v_idx={v_idx}, num_points={len(points)}")
             except Exception as e:
