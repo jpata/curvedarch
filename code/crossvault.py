@@ -127,7 +127,7 @@ cy = (Y_SPAN[0] + Y_SPAN[1]) / 2.0
 form = FormDiagram.create_fan(
     x_span=X_SPAN, 
     y_span=Y_SPAN, 
-    n_fans=4 * N_DISCRETISATION, 
+    n_fans=N_DISCRETISATION, 
     n_hoops=N_DISCRETISATION
 )
 
@@ -222,10 +222,8 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
             return math.atan2(my - cy_c, mx - cx_c)
         c_faces.sort(key=face_angle)
         
-        # Calculate how many corner faces make up one structural sector
-        faces_per_sector = len(c_faces) // num_sectors_per_quad
         for i, fkey in enumerate(c_faces):
-            sector_id = q * num_sectors_per_quad + (i // faces_per_sector)
+            sector_id = q * num_sectors_per_quad + i
             root_faces.append((fkey, sector_id))
 
     # 3. Propagate sector IDs topologically
@@ -265,51 +263,6 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
             strip_mesh.add_face([v_map[v] for v in fdiagram.face_vertices(fk)])
         meshes.append(strip_mesh)
         
-    # 5. Extract spokes for unroller by finding topological boundaries between sectors
-    vkeys = list(fdiagram.vertices())
-    center_vkey = min(vkeys, key=lambda v: (fdiagram.vertex_attribute(v, 'x') - cx)**2 + (fdiagram.vertex_attribute(v, 'y') - cy)**2)
-    hop_dist = {center_vkey: 0}
-    q = deque([center_vkey])
-    while q:
-        u = q.popleft()
-        for v in fdiagram.vertex_neighbors(u):
-            if v not in hop_dist:
-                hop_dist[v] = hop_dist[u] + 1
-                q.append(v)
-                
-    boundary_vs = fdiagram.vertices_on_boundary()
-    final_spokes = []
-    seen_paths = set()
-    
-    # We find paths from boundary to center prioritizing edges that separate sectors
-    for b_v in boundary_vs:
-        path = [b_v]
-        curr = b_v
-        target_angle = math.atan2(fdiagram.vertex_attribute(b_v, 'y') - cy, fdiagram.vertex_attribute(b_v, 'x') - cx)
-        while curr != center_vkey:
-            nbrs = fdiagram.vertex_neighbors(curr)
-            def score(v):
-                d = hop_dist.get(v, 999)
-                ang = math.atan2(fdiagram.vertex_attribute(v, 'y') - cy, fdiagram.vertex_attribute(v, 'x') - cx)
-                ang_diff = abs(math.atan2(math.sin(ang - target_angle), math.cos(ang - target_angle)))
-                return (d, ang_diff)
-            best_nbr = min(nbrs, key=score)
-            path.append(best_nbr)
-            curr = best_nbr
-        path.reverse()
-        final_spokes.append([vkey_to_idx[v] for v in path])
-        
-    # Sort and filter unique spokes 
-    # (Since there are 33 boundary vertices per quadrant, we have ~132 spokes, unroller will use them all to stay accurate)
-    final_spokes.sort(key=lambda s: math.atan2(fdiagram.vertex_attribute(vkeys[s[-1]], 'y') - cy, fdiagram.vertex_attribute(vkeys[s[-1]], 'x') - cx))
-    unique_spokes = []
-    seen = set()
-    for s in final_spokes:
-        t = tuple(s)
-        if t not in seen:
-            unique_spokes.append(s)
-            seen.add(t)
-
     with open(obj_path, 'w') as f:
         for p in points: f.write(f"v {p[0]} {p[1]} {p[2]}\n")
         for u, v in edges: f.write(f"l {u+1} {v+1}\n")
@@ -317,6 +270,7 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
     from compas.geometry import Point, Line
     compas_points = [Point(*p) for p in points]
     compas_lines = [Line(points[u], points[v]) for u, v in edges]
+    center_vkey = min(list(fdiagram.vertices()), key=lambda v: (fdiagram.vertex_attribute(v, 'x') - cx)**2 + (fdiagram.vertex_attribute(v, 'y') - cy)**2)
     corner = [cx, cy, fdiagram.vertex_attribute(center_vkey, 'z')]
 
     with open(json_path, 'w') as f:
@@ -327,7 +281,7 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
             "lines": compas_lines,
             "edge_point_indices": edges,
             "quadrant_corner": corner,
-            "spokes": unique_spokes,
+            "spokes": [],
             "meshes": meshes
         }, f)
     print(f"Exported: {json_path}")

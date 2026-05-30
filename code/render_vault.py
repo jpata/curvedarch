@@ -49,11 +49,23 @@ def render_geometry_matplotlib(json_file, output_prefix, view='top'):
         
         # Consistent colormap for strips
         cmap = plt.cm.tab20
-        
+        is_flat = "flat" in json_file
+        num_strips = len(meshes)
+        # Determine quadrant strips (assuming symmetry)
+        quadrant_strips = num_strips // 4 if num_strips >= 4 and not is_flat else num_strips
+
         # Plot meshes with unique colors
         for i, mesh in enumerate(meshes):
             has_data = True
-            color = cmap(i % 20)
+            if i < quadrant_strips:
+                color = cmap(i % 20)
+                alpha_val = 0.8 if view != 'perspective' else 0.6
+                edge_color = 'none'
+            else:
+                color = (0.8, 0.8, 0.8, 0.2) # Gray out other quadrants
+                alpha_val = 0.3 if view != 'perspective' else 0.2
+                edge_color = 'none'
+                
             for fkey in mesh.faces():
                 pts = [mesh.vertex_coordinates(vkey) for vkey in mesh.face_vertices(fkey)]
                 if view == 'perspective':
@@ -62,12 +74,12 @@ def render_geometry_matplotlib(json_file, output_prefix, view='top'):
                     y = [p[1] for p in pts]
                     z = [p[2] for p in pts]
                     verts = [list(zip(x, y, z))]
-                    poly = Poly3DCollection(verts, alpha=0.6, facecolor=color, edgecolor='none')
+                    poly = Poly3DCollection(verts, alpha=alpha_val, facecolor=color, edgecolor=edge_color)
                     ax.add_collection3d(poly)
                 else:
                     x = [p[idx1] for p in pts] + [pts[0][idx1]]
                     y = [p[idx2] for p in pts] + [pts[0][idx2]]
-                    ax.fill(x, y, facecolor=color, edgecolor='none', alpha=0.8)
+                    ax.fill(x, y, facecolor=color, edgecolor=edge_color, alpha=alpha_val)
 
         # Plot lines (wireframe/edges)
         for line in lines:
@@ -130,9 +142,11 @@ def render_geometry(json_file, output_prefix):
         print(f"Error: {json_file} not found.")
         return
 
-    success = False
-    
-    # Try OpenGL rendering first unless we are headlessly on Darwin
+    # Always generate matplotlib views first for consistency and specialized coloring
+    for v in ['perspective', 'top', 'front', 'right']:
+        render_geometry_matplotlib(json_file, output_prefix, view=v)
+
+    # Then attempt OpenGL if available
     is_darwin_headless = os.uname().sysname == 'Darwin' and os.environ.get("QT_QPA_PLATFORM") == "offscreen"
     
     if not is_darwin_headless:
@@ -148,8 +162,21 @@ def render_geometry(json_file, output_prefix):
             for line in lines:
                 viewer.scene.add(line, linecolor=(0, 0, 0), linewidth=2)
             
+            num_strips = len(meshes)
+            quadrant_strips = num_strips // 4 if num_strips >= 4 else num_strips
+            
+            import matplotlib.pyplot as plt
+            cmap = plt.cm.tab20
+            
             for i, mesh in enumerate(meshes):
-                viewer.scene.add(mesh, name=f"Mesh_{i}", facecolor=(200, 200, 200), show_edges=True)
+                if i < quadrant_strips:
+                    rgba = cmap(i % 20)
+                    from compas.colors import Color
+                    c_color = Color(rgba[0], rgba[1], rgba[2], 0.8)
+                else:
+                    from compas.colors import Color
+                    c_color = Color(0.8, 0.8, 0.8, 0.2)
+                viewer.scene.add(mesh, name=f"Mesh_{i}", facecolor=c_color, show_edges=True)
             
             views = ['perspective', 'top', 'front', 'right']
             output_dir = pathlib.Path("renders")
@@ -166,18 +193,9 @@ def render_geometry(json_file, output_prefix):
                     filepath = output_dir / f"{output_prefix}_{view_name}.png"
                     if qimage.save(str(filepath), "PNG"):
                         print(f"Successfully saved to {filepath}")
-                        success = True
             
         except Exception as e:
             print(f"OpenGL rendering encountered an error: {e}")
-
-    if not success:
-        # For 3D geometries, generate multiple views with matplotlib
-        for v in ['perspective', 'top', 'front', 'right']:
-            render_geometry_matplotlib(json_file, output_prefix, view=v)
-    else:
-        # Even if OpenGL worked, generate perspective matplotlib for consistency
-        render_geometry_matplotlib(json_file, output_prefix, view='perspective')
 
 if __name__ == "__main__":
     if os.path.exists("min_thrust_geometry.json"):
