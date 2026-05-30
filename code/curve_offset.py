@@ -45,89 +45,128 @@ def load_instructions_from_json(filepath):
             
         print(f"Info: Using corner {loaded_quadrant_corner}")
 
-        from collections import defaultdict
-        adj = defaultdict(list)
-        for u, v in edge_indices_list:
-            adj[u].append(v)
-            adj[v].append(u)
-            
-        crown_v = min(range(len(compas_points)), key=lambda i: compas_points[i].distance_to_point(loaded_quadrant_corner))
-
-        # Trace all 11 spokes from the crown
-        polylines = []
-        for start_neighbor in adj[crown_v]:
-            path = [crown_v, start_neighbor]
-            prev, curr = crown_v, start_neighbor
-            for _ in range(50):
-                next_v = None
-                p_prev, p_curr = compas_points[prev], compas_points[curr]
-                v_curr = Vector(p_curr.x - p_prev.x, p_curr.y - p_prev.y, 0)
-                if v_curr.length < 1e-8: break
-                v_curr.unitize()
+        # Use explicitly provided spokes if available, otherwise fallback to BFS extraction
+        spokes_indices = data_dict.get("spokes")
+        if spokes_indices:
+            print(f"Info: Using {len(spokes_indices)} explicitly provided spokes.")
+            polylines = [Polyline([compas_points[idx] for idx in spoke]) for spoke in spokes_indices]
+        else:
+            print("Info: No spokes provided in JSON, falling back to topological extraction.")
+            from collections import defaultdict
+            adj = defaultdict(list)
+            for u, v in edge_indices_list:
+                adj[u].append(v)
+                adj[v].append(u)
                 
-                # Find best collinear neighbor (radial)
-                best_dot = 0.5 
-                for neighbor in adj[curr]:
-                    if neighbor == prev: continue
-                    p_next = compas_points[neighbor]
-                    v_next = Vector(p_next.x - p_curr.x, p_next.y - p_curr.y, 0)
-                    if v_next.length < 1e-8: continue
-                    v_next.unitize()
-                    dot = v_curr.dot(v_next)
-                    if dot > best_dot:
-                        best_dot, next_v = dot, neighbor
-                
-                if next_v is not None:
-                    path.append(next_v)
-                    prev, curr = curr, next_v
-                else: break
-            if len(path) > 1: polylines.append(Polyline([compas_points[i] for i in path]))
+            crown_v = min(range(len(compas_points)), key=lambda i: compas_points[i].distance_to_point(loaded_quadrant_corner))
 
-        # Sort and take exactly 11 longest (for 10 sections)
-        polylines.sort(key=lambda p: len(p.points), reverse=True)
-        polylines = polylines[:11]
-        
-        # Ensure all have the same number of points (truncate to most common or min)
-        if polylines:
-            counts = [len(p.points) for p in polylines]
-            target_count = max(counts) # or min, but usually 11
-            # If some are very long, they probably included hoops. 
-            # In a quadrant fan with n_hoops=10, we expect 11 points.
-            target_count = 11 
+            # BFS to find hop distance from crown to identify hoops
+            hop_dist = {crown_v: 0}
+            from collections import deque
+            q = deque([crown_v])
+            while q:
+                u = q.popleft()
+                for v in adj[u]:
+                    if v not in hop_dist:
+                        hop_dist[v] = hop_dist[u] + 1
+                        q.append(v)
             
-            for p in polylines:
-                if len(p.points) > target_count:
-                    p.points = p.points[:target_count]
-                elif len(p.points) < target_count:
-                    print(f"Warning: Polyline too short ({len(p.points)} < {target_count})")
-        
+            # Trace spokes by following increasing hop distance
+            polylines = []
+            start_neighbors = adj[crown_v]
+            for sn in start_neighbors:
+                path = [crown_v, sn]
+                curr = sn
+                for d in range(2, 100): 
+                    next_vs = [v for v in adj[curr] if hop_dist.get(v) == d]
+                    if not next_vs: break
+                    
+                    if len(next_vs) > 1:
+                        p_prev, p_curr = compas_points[path[-2]], compas_points[curr]
+                        v_curr = Vector.from_start_end(p_prev, p_curr)
+                        if v_curr.length < 1e-8: break
+                        v_curr.unitize()
+                        best_v, best_dot = None, -2.0
+                        for v in next_vs:
+                            v_next = Vector.from_start_end(p_curr, compas_points[v])
+                            if v_next.length < 1e-8: continue
+                            v_next.unitize()
+                            dot = v_curr.dot(v_next)
+                            if dot > best_dot: best_dot, best_v = dot, v
+                        if best_v is not None and best_dot > 0.0: curr = best_v
+                        else: break
+                    else: curr = next_vs[0]
+                    path.append(curr)
+                polylines.append(Polyline([compas_points[idx] for idx in path]))
+
+        # Sort by angle to ensure strips are generated in order
         def get_angle(poly):
-            p_end = poly.points[-1]
-            return math.atan2(p_end.y - compas_points[crown_v].y, p_end.x - compas_points[crown_v].x)
+            p0, p1 = poly.points[0], poly.points[1]
+            return math.atan2(p1.y - p0.y, p1.x - p0.x)
         polylines.sort(key=get_angle)
 
-        print(f"Final extracted radial polylines: {len(polylines)}")
-        for i, p in enumerate(polylines):
+        # Resample all polylines to the same number of points
+        TARGET_SAMPLES = 20 # Increased for better accuracy
+        resampled_polylines = []
+        for poly in polylines:
+            # Simple linear resampling
+            new_points = []
+            # Calculate total length
+            segments = []
+            total_length = 0
+            for i in range(len(poly.points)-1):
+                d = poly.points[i].distance_to_point(poly.points[i+1])
+                segments.append(d)
+                total_length += d
+            
+            if total_length < 1e-6: continue
+            
+            for i in range(TARGET_SAMPLES):
+                target_d = (i / (TARGET_SAMPLES - 1)) * total_length
+                # Find which segment this distance falls into
+                curr_d = 0
+                found = False
+                for j, seg_len in enumerate(segments):
+                    if curr_d + seg_len >= target_d - 1e-8:
+                        # Interpolate in this segment
+                        t = (target_d - curr_d) / seg_len if seg_len > 1e-9 else 0
+                        p_start = poly.points[j]
+                        p_end = poly.points[j+1]
+                        new_pt = p_start + (p_end - p_start) * t
+                        new_points.append(new_pt)
+                        found = True
+                        break
+                    curr_d += seg_len
+                if not found:
+                    new_points.append(poly.points[-1])
+            resampled_polylines.append(Polyline(new_points))
+
+        print(f"Final extracted and resampled radial polylines: {len(resampled_polylines)}")
+        for i, p in enumerate(resampled_polylines):
             print(f"  Polyline {i}: {len(p.points)} points, ends at {p.points[-1]}")
 
-        instructions_data = polylines
+        instructions_data = resampled_polylines
         return True
     except Exception as e:
         print(f"Error loading JSON: {e}")
         return False
 
 def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unroll_vec):
-    if len(poly1_3d.points) != len(poly2_3d.points) or len(poly1_3d.points) < 2: return None, []
-    N = len(poly1_3d.points)
+    N1 = len(poly1_3d.points)
+    N2 = len(poly2_3d.points)
+    N = min(N1, N2)
+    if N < 2: return None, []
     z_plane = start_point_on_plane.z
     flat_vertices, flat_faces = [], []
     quad_distortions = [] 
     xy_plane_normal = Vector(0, 0, 1)
     
-    P0_3d, Q0_3d = poly1_3d.points[0], poly2_3d.points[0]
+    # We'll develop by triangulating each quad: (P_j, Q_j, P_j+1) and (P_j+1, Q_j, Q_j+1)
     P_curr_flat = start_point_on_plane.copy()
     
+    P0_3d, Q0_3d = poly1_3d.points[0], poly2_3d.points[0]
     dist_p0q0 = P0_3d.distance_to_point(Q0_3d)
+    
     unroll_dir_xy = Vector(initial_unroll_vec.x, initial_unroll_vec.y, 0)
     if unroll_dir_xy.length < 1e-6: unroll_dir_xy = Vector(1,0,0)
     else: unroll_dir_xy.unitize()
@@ -139,89 +178,75 @@ def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unr
         Q_curr_flat = P_curr_flat + rung_dir_xy * dist_p0q0
     
     Q_curr_flat.z = z_plane
-    flat_vertices.append(P_curr_flat)
-    flat_vertices.append(Q_curr_flat)
+    flat_vertices.extend([P_curr_flat, Q_curr_flat])
     
-    P_prev_flat = None 
-
     for j in range(N - 1):
         P_curr_3d, P_next_3d = poly1_3d.points[j], poly1_3d.points[j+1]
         Q_curr_3d, Q_next_3d = poly2_3d.points[j], poly2_3d.points[j+1]
-
+        
+        # 1. Find P_next_flat using triangle (P_curr, Q_curr, P_next)
         d_pc_pn = P_curr_3d.distance_to_point(P_next_3d)
         d_qc_pn = Q_curr_3d.distance_to_point(P_next_3d)
-
-        # Find P_next_flat
-        if d_qc_pn < 1e-8:
-            P_next_flat = Q_curr_flat.copy()
-        elif d_pc_pn < 1e-8:
-            P_next_flat = P_curr_flat.copy()
-        elif P_curr_flat.distance_to_point(Q_curr_flat) < 1e-8:
-             P_next_flat = P_curr_flat + unroll_dir_xy * d_pc_pn
-        else:
-            intersections_P = intersection_circle_circle_xy(((P_curr_flat, xy_plane_normal), d_pc_pn), ((Q_curr_flat, xy_plane_normal), d_qc_pn))
-            if not intersections_P:
-                # Precision near-miss handling
-                dist_f = P_curr_flat.distance_to_point(Q_curr_flat)
-                if abs(dist_f - (d_pc_pn + d_qc_pn)) < 1e-7 or dist_f > (d_pc_pn + d_qc_pn):
-                    vec = Vector.from_start_end(P_curr_flat, Q_curr_flat).unitized()
-                    P_next_flat = P_curr_flat + vec * d_pc_pn
-                else:
-                    print(f"FAILED intersection P at j={j}. Distances: {d_pc_pn}, {d_qc_pn}. P_curr_flat: {P_curr_flat}, Q_curr_flat: {Q_curr_flat}, Dist_flat: {dist_f}")
-                    return None, []
-            else:
-                P_next_flat_chosen_xy = intersections_P[0]
-                if len(intersections_P) > 1:
-                    fwd_dir = unroll_dir_xy if P_prev_flat is None else Vector.from_start_end(P_prev_flat, P_curr_flat).unitized()
-                    v0 = Vector(intersections_P[0][0]-P_curr_flat.x, intersections_P[0][1]-P_curr_flat.y, 0)
-                    v1 = Vector(intersections_P[1][0]-P_curr_flat.x, intersections_P[1][1]-P_curr_flat.y, 0)
-                    if v0.length > 1e-9: v0.unitize()
-                    if v1.length > 1e-9: v1.unitize()
-                    P_next_flat_chosen_xy = intersections_P[0] if v0.dot(fwd_dir) >= v1.dot(fwd_dir) else intersections_P[1]
-                P_next_flat = Point(P_next_flat_chosen_xy[0], P_next_flat_chosen_xy[1], z_plane)
-
-        d_qc_qn = Q_curr_3d.distance_to_point(Q_next_3d)
-        d_pn_qn = P_next_3d.distance_to_point(Q_next_3d) 
         
-        # Find Q_next_flat
-        if d_pn_qn < 1e-8:
-            Q_next_flat = P_next_flat.copy()
-        elif d_qc_qn < 1e-8:
-            Q_next_flat = Q_curr_flat.copy()
-        elif Q_curr_flat.distance_to_point(P_next_flat) < 1e-8:
-            fwd_dir = Vector.from_start_end(P_curr_flat, P_next_flat).unitized()
-            Q_next_flat = P_next_flat + fwd_dir * d_qc_qn
+        d_pq = P_curr_flat.distance_to_point(Q_curr_flat)
+        if d_pq < 1e-8:
+            # Degenerate start (tip of triangle)
+            P_next_flat = P_curr_flat + unroll_dir_xy * d_pc_pn
         else:
-            intersections_Q = intersection_circle_circle_xy(((Q_curr_flat, xy_plane_normal), d_qc_qn), ((P_next_flat, xy_plane_normal), d_pn_qn))
-            if not intersections_Q:
-                dist_f = Q_curr_flat.distance_to_point(P_next_flat)
-                if abs(dist_f - (d_qc_qn + d_pn_qn)) < 1e-7 or dist_f > (d_qc_qn + d_pn_qn):
-                    vec = Vector.from_start_end(Q_curr_flat, P_next_flat).unitized()
-                    Q_next_flat = Q_curr_flat + vec * d_qc_qn
-                else:
-                    print(f"FAILED intersection Q at j={j}. Distances: {d_qc_qn}, {d_pn_qn}. Q_curr_flat: {Q_curr_flat}, P_next_flat: {P_next_flat}, Dist_flat: {dist_f}")
-                    return None, [] 
+            intersections = intersection_circle_circle_xy(((P_curr_flat, xy_plane_normal), d_pc_pn), ((Q_curr_flat, xy_plane_normal), d_qc_pn))
+            if not intersections:
+                # Handle near-miss
+                vec = Vector.from_start_end(P_curr_flat, Q_curr_flat).unitized()
+                P_next_flat = P_curr_flat + vec * d_pc_pn
             else:
-                Q_next_flat_chosen_xy = intersections_Q[0]
-                if len(intersections_Q) > 1:
-                    rung_prev_dir = Vector.from_start_end(P_curr_flat, Q_curr_flat)
-                    if rung_prev_dir.length < 1e-8:
-                        rung_prev_dir = unroll_dir_xy.cross(xy_plane_normal)
-                    rung_prev_dir.unitize()
-                    r0 = Vector(intersections_Q[0][0]-P_next_flat.x, intersections_Q[0][1]-P_next_flat.y, 0)
-                    r1 = Vector(intersections_Q[1][0]-P_next_flat.x, intersections_Q[1][1]-P_next_flat.y, 0)
-                    if r0.length > 1e-9: r0.unitize()
-                    if r1.length > 1e-9: r1.unitize()
-                    Q_next_flat_chosen_xy = intersections_Q[0] if r0.dot(rung_prev_dir) >= r1.dot(rung_prev_dir) else intersections_Q[1]
-                Q_next_flat = Point(Q_next_flat_chosen_xy[0], Q_next_flat_chosen_xy[1], z_plane)
-
-        diag_3d_length = P_curr_3d.distance_to_point(Q_next_3d)
-        diag_flat_length = P_curr_flat.distance_to_point(Q_next_flat) 
-        quad_distortions.append(abs(diag_3d_length - diag_flat_length) / diag_3d_length if diag_3d_length > 1e-9 else 0.0)
+                # Choose the one that goes "forward"
+                if len(intersections) > 1:
+                    v0 = Vector.from_start_end(P_curr_flat, Point(*intersections[0]))
+                    v1 = Vector.from_start_end(P_curr_flat, Point(*intersections[1]))
+                    P_next_flat = Point(*intersections[0]) if v0.dot(unroll_dir_xy) >= v1.dot(unroll_dir_xy) else Point(*intersections[1])
+                else:
+                    P_next_flat = Point(*intersections[0])
+        
+        P_next_flat.z = z_plane
+        
+        # 2. Find Q_next_flat using triangle (P_next, Q_curr, Q_next)
+        d_pn_qn = P_next_3d.distance_to_point(Q_next_3d)
+        d_qc_qn = Q_curr_3d.distance_to_point(Q_next_3d)
+        
+        d_pnqc = P_next_flat.distance_to_point(Q_curr_flat)
+        if d_pnqc < 1e-8:
+            Q_next_flat = P_next_flat.copy()
+        else:
+            intersections = intersection_circle_circle_xy(((P_next_flat, xy_plane_normal), d_pn_qn), ((Q_curr_flat, xy_plane_normal), d_qc_qn))
+            if not intersections:
+                vec = Vector.from_start_end(P_next_flat, Q_curr_flat).unitized()
+                Q_next_flat = P_next_flat + vec * d_pn_qn
+            else:
+                # Choose the one that is on the "other" side of the P-spoke
+                if len(intersections) > 1:
+                    rung_vec = Vector.from_start_end(P_curr_flat, Q_curr_flat)
+                    if rung_vec.length < 1e-8: rung_vec = xy_plane_normal.cross(unroll_dir_xy)
+                    r0 = Vector.from_start_end(P_next_flat, Point(*intersections[0]))
+                    r1 = Vector.from_start_end(P_next_flat, Point(*intersections[1]))
+                    Q_next_flat = Point(*intersections[0]) if r0.dot(rung_vec) >= r1.dot(rung_vec) else Point(*intersections[1])
+                else:
+                    Q_next_flat = Point(*intersections[0])
+                    
+        Q_next_flat.z = z_plane
+        
+        # Distortion check
+        diag_3d = P_curr_3d.distance_to_point(Q_next_3d)
+        diag_flat = P_curr_flat.distance_to_point(Q_next_flat)
+        quad_distortions.append(abs(diag_3d - diag_flat) / diag_3d if diag_3d > 1e-9 else 0.0)
+        
         flat_vertices.extend([P_next_flat, Q_next_flat])
-        idx_Pc, idx_Qc, idx_Pn, idx_Qn = 2*j, 2*j + 1, len(flat_vertices)-2, len(flat_vertices)-1
-        flat_faces.append([idx_Pc, idx_Pn, idx_Qn, idx_Qc]) 
-        P_prev_flat, P_curr_flat, Q_curr_flat = P_curr_flat, P_next_flat, Q_next_flat
+        idx_Pc, idx_Qc, idx_Pn, idx_Qn = 2*j, 2*j + 1, 2*j + 2, 2*j + 3
+        flat_faces.append([idx_Pc, idx_Pn, idx_Qn, idx_Qc])
+        
+        P_curr_flat, Q_curr_flat = P_next_flat, Q_next_flat
+        # Update unroll direction for next step
+        unroll_dir_xy = Vector.from_start_end(flat_vertices[2*j], P_curr_flat).unitized()
+
     return Mesh.from_vertices_and_faces(flat_vertices, flat_faces), quad_distortions
 
 def generate_flat_patterns():

@@ -24,6 +24,8 @@ from compas_tna.diagrams import FormDiagram
 from compas_tno.analysis import Analysis
 from compas.data import json_dump 
 import os
+import math
+from compas.geometry import Vector
 
 # ----------------------------------------
 # 1. Shape geometric definition
@@ -58,7 +60,38 @@ for vkey in form.vertices():
 # 3. Structural Analysis
 # ----------------------------------------
 
-def export_geometry_to_obj_and_json(points, obj_filepath, json_filepath, edge_indices=None, corner=None):
+def get_spokes_indices(form, cx, cy):
+    vkeys = list(form.vertices())
+    center_vkey = min(vkeys, key=lambda v: (form.vertex_attribute(v, 'x') - cx)**2 + (form.vertex_attribute(v, 'y') - cy)**2)
+    
+    # Group vertices by angle from center
+    from collections import defaultdict
+    angle_groups = defaultdict(list)
+    
+    for vkey in vkeys:
+        if vkey == center_vkey: continue
+        x, y = form.vertex_coordinates(vkey)[:2]
+        angle = math.atan2(y - cy, x - cx)
+        # Round angle to handle floating point precision
+        angle_rounded = round(angle, 4)
+        angle_groups[angle_rounded].append(vkey)
+        
+    spokes_indices = []
+    vkey_to_idx = {vkey: i for i, vkey in enumerate(vkeys)}
+    
+    for angle in sorted(angle_groups.keys()):
+        vs = angle_groups[angle]
+        # Sort by distance from center
+        vs.sort(key=lambda v: (form.vertex_attribute(v, 'x') - cx)**2 + (form.vertex_attribute(v, 'y') - cy)**2)
+        spoke = [center_vkey] + vs
+        spokes_indices.append([vkey_to_idx[v] for v in spoke])
+    
+    print(f"Debug: Identified {len(spokes_indices)} spokes via angular grouping.")
+    for i, s in enumerate(spokes_indices):
+        print(f"  Spoke {i}: {len(s)} points")
+    return spokes_indices
+
+def export_geometry_to_obj_and_json(points, obj_filepath, json_filepath, edge_indices=None, corner=None, spokes=None):
     if not points: return False
     try:
         with open(obj_filepath, 'w') as f:
@@ -82,13 +115,17 @@ def export_geometry_to_obj_and_json(points, obj_filepath, json_filepath, edge_in
                 "points": compas_points,
                 "lines": compas_lines,
                 "edge_point_indices": edge_indices or [],
-                "quadrant_corner": corner
+                "quadrant_corner": corner,
+                "spokes": spokes or []
             }, f)
         print(f"Exported JSON to {json_filepath}")
         return True
     except Exception as e:
         print(f"Error JSON: {e}")
         return False
+
+# Identify spokes BEFORE analysis while geometry is perfect
+spokes = get_spokes_indices(form, cx, cy)
 
 print("-" * 20)
 print("Running Minimum Thrust Analysis")
@@ -104,9 +141,9 @@ points_min = [[analysis_min.formdiagram.vertex_attribute(v, 'x'),
                analysis_min.formdiagram.vertex_attribute(v, 'z')] for v in analysis_min.formdiagram.vertices()]
 vkey_to_idx = {vkey: i for i, vkey in enumerate(analysis_min.formdiagram.vertices())}
 edges = [(vkey_to_idx[u], vkey_to_idx[v]) for u, v in analysis_min.formdiagram.edges()]
-corner = [cx, cy, points_min[0][2]]
+corner = [cx, cy, points_min[vkey_to_idx[list(analysis_min.formdiagram.vertices())[0]]][2]] # Corrected corner Z
 
-export_geometry_to_obj_and_json(points_min, "./min_thrust_quadrant_geometry.obj", "./min_thrust_quadrant_geometry.json", edges, corner)
+export_geometry_to_obj_and_json(points_min, "./min_thrust_quadrant_geometry.obj", "./min_thrust_quadrant_geometry.json", edges, corner, spokes)
 
 print("-" * 20)
 print("Running Maximum Thrust Analysis")
@@ -121,4 +158,4 @@ points_max = [[analysis_max.formdiagram.vertex_attribute(v, 'x'),
                analysis_max.formdiagram.vertex_attribute(v, 'y'), 
                analysis_max.formdiagram.vertex_attribute(v, 'z')] for v in analysis_max.formdiagram.vertices()]
 
-export_geometry_to_obj_and_json(points_max, "./max_thrust_quadrant_geometry.obj", "./max_thrust_quadrant_geometry.json", edges, corner)
+export_geometry_to_obj_and_json(points_max, "./max_thrust_quadrant_geometry.obj", "./max_thrust_quadrant_geometry.json", edges, corner, spokes)
