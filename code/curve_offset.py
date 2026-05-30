@@ -28,10 +28,13 @@ loaded_json_points = []
 loaded_quadrant_corner = None 
 is_updating = False
 
+loaded_meshes = []
+
 def load_instructions_from_json(filepath):
-    global instructions_data, loaded_json_points, loaded_quadrant_corner
+    global instructions_data, loaded_json_points, loaded_quadrant_corner, loaded_meshes
     try:
         data_dict = json_load(filepath)
+        loaded_meshes = data_dict.get("meshes", [])
         compas_points = data_dict.get("points")
         if not isinstance(compas_points, list): return False
 
@@ -100,6 +103,7 @@ def load_instructions_from_json(filepath):
                 polylines.append(Polyline([compas_points[idx] for idx in path]))
 
         # Sort by angle to ensure strips are generated in order
+        polylines = [p for p in polylines if len(p.points) >= 2]
         def get_angle(poly):
             p0, p1 = poly.points[0], poly.points[1]
             return math.atan2(p1.y - p0.y, p1.x - p0.x)
@@ -352,13 +356,8 @@ def unfold_mesh_strip(mesh, start_point, unroll_dir):
     return new_mesh, [0.0]
 
 def generate_flat_patterns():
-    global FLAT_Z_OFFSET
-    from compas.data import json_load
-    try:
-        data = json_load('corrugated_geometry.json')
-        source_meshes = data.get('meshes', [])
-    except:
-        source_meshes = []
+    global FLAT_Z_OFFSET, loaded_meshes
+    source_meshes = loaded_meshes
         
     num_strips = len(source_meshes) // 4 if len(source_meshes) >= 4 else len(source_meshes)
     flat_meshes, spacing_x, spacing_y, strips_per_row = [], 15.0, 15.0, 8

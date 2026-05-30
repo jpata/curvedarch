@@ -101,10 +101,10 @@ from compas.geometry import Vector
 X_SPAN = [0.0, 20.0]
 Y_SPAN = [0.0, 32.38]
 HC_RISE = 2.0
-THICKNESS = 0.5
+THICKNESS = 2
 
 # Discretisation
-N_DISCRETISATION = 8
+N_DISCRETISATION = 2
 
 # ==============================================================================
 # 2. Geometry Setup
@@ -187,11 +187,16 @@ def get_spokes_indices(form, cx, cy):
     unique_spokes.sort(key=lambda s: math.atan2(form.vertex_attribute(vkeys[s[-1]], 'y') - cy, form.vertex_attribute(vkeys[s[-1]], 'x') - cx))
     return unique_spokes
 
-def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy):
+def export_vault_geometry(analysis, spokes, obj_path, json_path, cx, cy, custom_points=None):
     """Exports optimized geometry using Topological Corner Growth sectoring."""
     fdiagram = analysis.formdiagram
     vkey_to_idx = {vkey: i for i, vkey in enumerate(fdiagram.vertices())}
-    points = [[fdiagram.vertex_attribute(v, 'x'), fdiagram.vertex_attribute(v, 'y'), fdiagram.vertex_attribute(v, 'z')] for v in fdiagram.vertices()]
+    
+    if custom_points is not None:
+        points = custom_points
+    else:
+        points = [[fdiagram.vertex_attribute(v, 'x'), fdiagram.vertex_attribute(v, 'y'), fdiagram.vertex_attribute(v, 'z')] for v in fdiagram.vertices()]
+    
     edges = [(vkey_to_idx[u], vkey_to_idx[v]) for u, v in fdiagram.edges()]
     
     # 1. Identify Corners
@@ -210,10 +215,10 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
 
     # 2. Extract root faces and assign sector IDs
     root_faces = []
-    num_sectors_per_quad = N_DISCRETISATION
     for q in range(4):
         c_vkey = corner_vkeys[q]
         c_faces = fdiagram.vertex_faces(c_vkey)
+        num_sectors_per_quad = len(c_faces)
         cx_c, cy_c = corners[q]
         def face_angle(fkey):
             pts = [fdiagram.vertex_coordinates(v) for v in fdiagram.face_vertices(fkey)]
@@ -258,7 +263,7 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
         for fk in fkeys:
             for v in fdiagram.face_vertices(fk):
                 if v not in v_map:
-                    p = fdiagram.vertex_coordinates(v)
+                    p = points[vkey_to_idx[v]]
                     v_map[v] = strip_mesh.add_vertex(x=p[0], y=p[1], z=p[2])
             strip_mesh.add_face([v_map[v] for v in fdiagram.face_vertices(fk)])
         meshes.append(strip_mesh)
@@ -282,7 +287,7 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
             "lines": compas_lines,
             "edge_point_indices": edges,
             "quadrant_corner": corner,
-            "spokes": [],
+            "spokes": spokes,
             "meshes": meshes
         }, f)
     print(f"Exported: {json_path}")
@@ -292,20 +297,39 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
     quad_meshes = meshes[:num_sectors_per_quad]
     
     # Collect points and edges for the quadrant
-    quad_v_keys = set()
-    for m in quad_meshes:
-        for v in m.vertices():
-            # Vertex coordinates are stored in the mesh
-            p = m.vertex_coordinates(v)
-            quad_v_keys.add(tuple(p))
+    quad_vkeys = set()
+    for sid in range(num_sectors_per_quad):
+        for fk in sector_to_faces[sid]:
+            for v in fdiagram.face_vertices(fk):
+                quad_vkeys.add(v)
+    
+    quad_points_list = []
+    old_to_new_quad = {}
+    for v in quad_vkeys:
+        old_idx = vkey_to_idx[v]
+        old_to_new_quad[old_idx] = len(quad_points_list)
+        quad_points_list.append(points[old_idx])
+        
+    quad_edges = []
+    for u, v in fdiagram.edges():
+        if u in quad_vkeys and v in quad_vkeys:
+            quad_edges.append((old_to_new_quad[vkey_to_idx[u]], old_to_new_quad[vkey_to_idx[v]]))
             
-    # We'll just export meshes in the quadrant JSON as that's what the renderer uses
+    quad_spokes = []
+    for s in spokes:
+        if any(idx in old_to_new_quad for idx in s):
+            quad_spokes.append([old_to_new_quad[idx] for idx in s if idx in old_to_new_quad])
+
     with open(quad_path, 'w') as f:
         json_dump({
-            "meshes": quad_meshes,
-            "quadrant_corner": corner
+            "points": [Point(*p) for p in quad_points_list],
+            "edge_point_indices": quad_edges,
+            "quadrant_corner": corner,
+            "spokes": quad_spokes,
+            "meshes": quad_meshes
         }, f)
-    print(f"Exported: {quad_path}")
+    print(f"Exported Quadrant: {quad_path}")
+
 
 # ==============================================================================
 # 4. Structural Analysis
@@ -354,15 +378,7 @@ for i, spoke in enumerate(spokes):
     for v_idx in spoke:
         p_corrugated[v_idx] = source[v_idx]
 
-export_vault_geometry(analysis_max, spokes, "corrugated_geometry.obj", "corrugated_geometry.json", cx, cy)
-
-from compas.data import json_load, json_dump
-with open("corrugated_geometry.json", 'r') as f:
-    data = json_load(f)
-    from compas.geometry import Point
-    data["points"] = [Point(*p) for p in p_corrugated]
-with open("corrugated_geometry.json", 'w') as f:
-    json_dump(data, f)
+export_vault_geometry(analysis_max, spokes, "corrugated_geometry.obj", "corrugated_geometry.json", cx, cy, custom_points=p_corrugated)
 
 print("-" * 30)
 print("Corrugated full vault geometry generated.")

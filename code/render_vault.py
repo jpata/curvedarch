@@ -50,10 +50,16 @@ def render_geometry_matplotlib(json_file, output_prefix, view='top'):
         # Consistent colormap for strips
         cmap = plt.cm.tab20
         is_flat = "flat" in json_file
+        is_quadrant = "quadrant" in json_file
         num_strips = len(meshes)
+        
         # Determine quadrant strips (assuming symmetry)
-        quadrant_strips = num_strips // 4 if num_strips >= 4 and not is_flat else num_strips
-        print(f"File {json_file}: total={num_strips}, quadrant={quadrant_strips}")
+        if is_quadrant or is_flat:
+            quadrant_strips = num_strips
+        else:
+            quadrant_strips = num_strips // 4 if num_strips >= 4 else num_strips
+            
+        print(f"File {json_file}: total={num_strips}, quadrant_highlight={quadrant_strips}")
 
                 # Plot meshes with unique colors
         for i, mesh in enumerate(meshes):
