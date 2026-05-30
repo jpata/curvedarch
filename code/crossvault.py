@@ -104,7 +104,7 @@ HC_RISE = 2.0
 THICKNESS = 2
 
 # Discretisation
-N_DISCRETISATION = 2
+N_DISCRETISATION = 8
 
 # ==============================================================================
 # 2. Geometry Setup
