@@ -360,7 +360,7 @@ def generate_flat_patterns():
     except:
         source_meshes = []
         
-    num_strips = len(source_meshes)
+    num_strips = len(source_meshes) // 4 if len(source_meshes) >= 4 else len(source_meshes)
     flat_meshes, spacing_x, spacing_y, strips_per_row = [], 15.0, 15.0, 8
     
     for i in range(num_strips):
