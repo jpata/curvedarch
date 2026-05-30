@@ -13,7 +13,7 @@ from compas.datastructures import Mesh
 from compas_viewer import Viewer
 
 # --- Configuration ---
-NUM_CATENARY_POINTS = 21
+NUM_CATENARY_POINTS = 41
 FLAT_Z_OFFSET = -15.0 # Initial FLAT_Z_OFFSET, will be controllable by UI
 
 # --- Global variables for UI interaction and scene management ---
