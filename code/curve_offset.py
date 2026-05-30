@@ -252,31 +252,150 @@ def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unr
 
     return Mesh.from_vertices_and_faces(flat_vertices, flat_faces), quad_distortions
 
-def generate_flat_patterns():
-    global instructions_data, FLAT_Z_OFFSET
-    num_expected_strips = max(0, len(instructions_data))
-    flat_meshes, spacing_x, spacing_y, strips_per_row = [], 15.0, 15.0, 10
+def unfold_mesh_strip(mesh, start_point, unroll_dir):
+    from compas.geometry import Point, Vector
+    from compas.datastructures import Mesh
+    import math
     
-    # We now process ALL strips in a circular loop
-    for i in range(num_expected_strips):
-        poly1_3d = instructions_data[i]
-        # Close the loop: last spoke joins with the first one
-        poly2_3d = instructions_data[(i + 1) % num_expected_strips]
+    mesh.quads_to_triangles()
+    
+    z_min = min(mesh.vertex_attribute(v, 'z') for v in mesh.vertices())
+    boundary_edges = mesh.edges_on_boundary()
+    start_edge = None
+    for u, v in boundary_edges:
+        if abs(mesh.vertex_attribute(u, 'z') - z_min) < 1e-2 and abs(mesh.vertex_attribute(v, 'z') - z_min) < 1e-2:
+            start_edge = (u, v)
+            break
+    if start_edge is None: start_edge = boundary_edges[0]
         
+    start_face = mesh.halfedge_face((start_edge[0], start_edge[1]))
+    if start_face is None:
+        start_edge = (start_edge[1], start_edge[0])
+        start_face = mesh.halfedge_face((start_edge[0], start_edge[1]))
+        
+    flat_vertices = {}
+    u, v = start_edge
+    p_u = Point(*mesh.vertex_coordinates(u))
+    p_v = Point(*mesh.vertex_coordinates(v))
+    d_uv = p_u.distance_to_point(p_v)
+    
+    flat_vertices[u] = start_point.copy()
+    rung_dir = Vector(-unroll_dir.y, unroll_dir.x, 0)
+    if rung_dir.length < 1e-6: rung_dir = Vector(1,0,0)
+    rung_dir.unitize()
+    
+    flat_vertices[v] = start_point + rung_dir * d_uv
+    flat_vertices[u].z = start_point.z
+    flat_vertices[v].z = start_point.z
+    
+    from collections import deque
+    queue = deque([start_face])
+    visited_faces = set([start_face])
+    
+    while queue:
+        fkey = queue.popleft()
+        f_vkeys = mesh.face_vertices(fkey)
+        
+        placed_idx = [i for i, vk in enumerate(f_vkeys) if vk in flat_vertices]
+        
+        if len(placed_idx) == 2:
+            if (placed_idx[1] - placed_idx[0]) % 3 == 1:
+                p1_key, p2_key = f_vkeys[placed_idx[0]], f_vkeys[placed_idx[1]]
+                p3_key = f_vkeys[[i for i in range(3) if i not in placed_idx][0]]
+            else:
+                p1_key, p2_key = f_vkeys[placed_idx[1]], f_vkeys[placed_idx[0]]
+                p3_key = f_vkeys[[i for i in range(3) if i not in placed_idx][0]]
+                
+            p1_flat, p2_flat = flat_vertices[p1_key], flat_vertices[p2_key]
+            p1_3d = Point(*mesh.vertex_coordinates(p1_key))
+            p2_3d = Point(*mesh.vertex_coordinates(p2_key))
+            p3_3d = Point(*mesh.vertex_coordinates(p3_key))
+            
+            L13 = p1_3d.distance_to_point(p3_3d)
+            v12_3d = Vector.from_start_end(p1_3d, p2_3d)
+            v13_3d = Vector.from_start_end(p1_3d, p3_3d)
+            
+            angle = v12_3d.angle(v13_3d) if v12_3d.length > 1e-8 and v13_3d.length > 1e-8 else 0.0
+            
+            v12_flat = Vector.from_start_end(p1_flat, p2_flat)
+            if v12_flat.length > 1e-8:
+                v12_flat.unitize()
+                alpha = angle
+                ca, sa = math.cos(alpha), math.sin(alpha)
+                vx_new = v12_flat.x * ca - v12_flat.y * sa
+                vy_new = v12_flat.x * sa + v12_flat.y * ca
+                p3_flat = p1_flat + Vector(vx_new, vy_new, 0) * L13
+            else:
+                p3_flat = p1_flat.copy()
+                
+            p3_flat.z = start_point.z
+            flat_vertices[p3_key] = p3_flat
+            
+        for nbr in mesh.face_neighbors(fkey):
+            if nbr not in visited_faces:
+                visited_faces.add(nbr)
+                queue.append(nbr)
+                
+    new_mesh = Mesh()
+    v_map = {}
+    for fk in visited_faces:
+        f_vkeys = mesh.face_vertices(fk)
+        if all(vk in flat_vertices for vk in f_vkeys):
+            f_add = []
+            for vk in f_vkeys:
+                pt = flat_vertices[vk]
+                if vk not in v_map:
+                    v_map[vk] = new_mesh.add_vertex(x=pt.x, y=pt.y, z=pt.z)
+                f_add.append(v_map[vk])
+            new_mesh.add_face(f_add)
+        
+    return new_mesh, [0.0]
+
+def generate_flat_patterns():
+    global FLAT_Z_OFFSET
+    from compas.data import json_load
+    try:
+        data = json_load('corrugated_geometry.json')
+        source_meshes = data.get('meshes', [])
+    except:
+        source_meshes = []
+        
+    num_strips = len(source_meshes)
+    flat_meshes, spacing_x, spacing_y, strips_per_row = [], 15.0, 15.0, 8
+    
+    for i in range(num_strips):
+        mesh_3d = source_meshes[i]
         col, row = i % strips_per_row, i // strips_per_row
+        from compas.geometry import Point
         flat_start_point = Point(col * spacing_x, row * spacing_y, FLAT_Z_OFFSET)
-        p0, p1 = poly1_3d.points[0], poly1_3d.points[1]
         
-        initial_unroll_direction = Vector(p1.x - p0.x, p1.y - p0.y, 0)
-        if initial_unroll_direction.length < 1e-6: initial_unroll_direction = Vector(1,0,0)
-        else: initial_unroll_direction.unitize()
+        z_min = min(mesh_3d.vertex_attribute(v, 'z') for v in mesh_3d.vertices())
+        boundary_edges = mesh_3d.edges_on_boundary()
+        base_edge = None
+        for u, v in boundary_edges:
+            if abs(mesh_3d.vertex_attribute(u, 'z') - z_min) < 1e-2 and abs(mesh_3d.vertex_attribute(v, 'z') - z_min) < 1e-2:
+                base_edge = (u, v)
+                break
+        if not base_edge: base_edge = boundary_edges[0]
         
-        mesh, distortions = develop_strip_to_plane(poly1_3d, poly2_3d, flat_start_point, initial_unroll_direction)
-        if mesh:
-            max_d = max(distortions) if distortions else 0
-            avg_d = sum(distortions)/len(distortions) if distortions else 0
-            print(f"Strip {i}: Max distortion = {max_d:.6f}, Avg distortion = {avg_d:.6f}")
-            flat_meshes.append(mesh)
+        from compas.geometry import Vector
+        p_u = Point(*mesh_3d.vertex_coordinates(base_edge[0]))
+        p_v = Point(*mesh_3d.vertex_coordinates(base_edge[1]))
+        mid_base = p_u + (p_v - p_u) * 0.5
+        
+        z_max = max(mesh_3d.vertex_attribute(v, 'z') for v in mesh_3d.vertices())
+        crown_v = [v for v in mesh_3d.vertices() if abs(mesh_3d.vertex_attribute(v, 'z') - z_max) < 1e-2][0]
+        p_crown = Point(*mesh_3d.vertex_coordinates(crown_v))
+        
+        unroll_dir = Vector.from_start_end(mid_base, p_crown)
+        unroll_dir.z = 0
+        if unroll_dir.length < 1e-6: unroll_dir = Vector(0,1,0)
+        unroll_dir.unitize()
+        
+        flat_mesh, distortions = unfold_mesh_strip(mesh_3d, flat_start_point, unroll_dir)
+        if flat_mesh:
+            flat_meshes.append(flat_mesh)
+            
     return flat_meshes
 
 def regenerate_all_geometry():
@@ -287,7 +406,13 @@ def regenerate_all_geometry():
         for obj in scene_objects_flat_strips: viewer.scene.remove(obj)
         scene_objects_flat_strips.clear()
         for i, mesh in enumerate(generate_flat_patterns()):
-            if mesh: scene_objects_flat_strips.append(viewer.scene.add(mesh, name=f"FlatStrip_{i}", facecolor=Color(0.7, 0.9, 0.6, 0.7), show_edges=True))
+            if mesh: 
+                import matplotlib.pyplot as plt
+                cmap = plt.cm.tab20
+                rgba = cmap(i % 20)
+                from compas.colors import Color
+                c_color = Color(rgba[0], rgba[1], rgba[2], 0.8)
+                scene_objects_flat_strips.append(viewer.scene.add(mesh, name=f"FlatStrip_{i}", facecolor=c_color, show_edges=True))
         viewer.renderer.update() 
     finally: is_updating = False
 
