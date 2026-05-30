@@ -263,6 +263,8 @@ def generate_flat_patterns():
         else: initial_unroll_direction.unitize()
         mesh, distortions = develop_strip_to_plane(poly1_3d, poly2_3d, flat_start_point, initial_unroll_direction)
         if mesh:
+            # Store the original 3D angle for quadrant filtering
+            mesh.attributes['angle'] = math.atan2(p1.y - p0.y, p1.x - p0.x)
             max_d = max(distortions) if distortions else 0
             avg_d = sum(distortions)/len(distortions) if distortions else 0
             print(f"Strip {i}: Max distortion = {max_d:.6f}, Avg distortion = {avg_d:.6f}")
@@ -283,9 +285,14 @@ def regenerate_all_geometry():
 
 from compas.data import json_dump
 def save_flat_patterns_to_json(filepath):
+    global loaded_quadrant_corner
     flat_meshes = [m for m in generate_flat_patterns() if m]
     try:
-        with open(filepath, 'w') as f: json_dump({"meshes": flat_meshes}, f)
+        with open(filepath, 'w') as f: 
+            json_dump({
+                "meshes": flat_meshes,
+                "quadrant_corner": loaded_quadrant_corner
+            }, f)
         return True
     except Exception as e:
         print(f"Error saving: {e}")

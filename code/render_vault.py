@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 from compas.data import json_load
 from compas_viewer import Viewer
 
-def render_geometry_matplotlib(json_file, output_prefix):
+import math
+
+def render_geometry_matplotlib(json_file, output_prefix, only_one_quadrant=False):
     """Fallback renderer using matplotlib for 2D geometries (like flat patterns)."""
     if not os.path.exists(json_file):
         return False
@@ -30,15 +32,30 @@ def render_geometry_matplotlib(json_file, output_prefix):
         fig, ax = plt.subplots(figsize=(10, 10))
         
         has_data = False
+        rendered_count = 0
         # Plot meshes
         for mesh in meshes:
+            # Filter for one quadrant if requested and angle info is present
+            if only_one_quadrant:
+                angle = mesh.attributes.get('angle')
+                if angle is not None:
+                    # Normalize angle to [0, 2*pi)
+                    a = angle % (2 * math.pi)
+                    # Use a small epsilon for floating point comparison
+                    if not (-1e-6 <= a <= math.pi / 2 + 1e-6):
+                        continue
+
             has_data = True
+            rendered_count += 1
             for fkey in mesh.faces():
                 pts = [mesh.vertex_coordinates(vkey) for vkey in mesh.face_vertices(fkey)]
                 x = [p[0] for p in pts] + [pts[0][0]]
                 y = [p[1] for p in pts] + [pts[0][1]]
                 ax.fill(x, y, facecolor='lightblue', edgecolor='blue', linewidth=0.5, alpha=0.5)
                 ax.plot(x, y, color='blue', linewidth=0.5)
+        
+        if rendered_count > 0:
+            print(f"Rendered {rendered_count} meshes (out of {len(meshes)}).")
         
         # Plot lines
         for line in lines:
@@ -120,4 +137,4 @@ if __name__ == "__main__":
 
     if os.path.exists("flat_patterns.json"):
         # Always use matplotlib for flat patterns to get a true 2D view
-        render_geometry_matplotlib("flat_patterns.json", "flat_patterns")
+        render_geometry_matplotlib("flat_patterns.json", "flat_patterns", only_one_quadrant=True)
