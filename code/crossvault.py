@@ -98,13 +98,13 @@ from compas.geometry import Vector
 # ==============================================================================
 
 # Span and geometric rise
-X_SPAN = [0.0, 20.0]
-Y_SPAN = [0.0, 32.38]
+X_SPAN = [0.0, 10.0]
+Y_SPAN = [0.0, 15.0]
 HC_RISE = 2.0
-THICKNESS = 0.5
+THICKNESS = 1.0
 
 # Discretisation
-N_DISCRETISATION = 10 
+N_DISCRETISATION = 2
 
 # ==============================================================================
 # 2. Geometry Setup
