@@ -53,18 +53,22 @@ def render_geometry_matplotlib(json_file, output_prefix, view='top'):
         num_strips = len(meshes)
         # Determine quadrant strips (assuming symmetry)
         quadrant_strips = num_strips // 4 if num_strips >= 4 and not is_flat else num_strips
+        print(f"File {json_file}: total={num_strips}, quadrant={quadrant_strips}")
 
-        # Plot meshes with unique colors
+                # Plot meshes with unique colors
         for i, mesh in enumerate(meshes):
             has_data = True
             if i < quadrant_strips:
-                color = cmap(i % 20)
-                alpha_val = 0.8 if view != 'perspective' else 0.6
-                edge_color = 'none'
+                rgba = cmap(i % 20)
+                # Use solid color for highlighting
+                color = (rgba[0], rgba[1], rgba[2], 0.9)
+                edge_color = 'black'
+                edge_width = 0.5
             else:
-                color = (0.8, 0.8, 0.8, 0.2) # Gray out other quadrants
-                alpha_val = 0.3 if view != 'perspective' else 0.2
-                edge_color = 'none'
+                # Almost invisible gray for other quadrants
+                color = (0.9, 0.9, 0.9, 0.05) 
+                edge_color = (0.5, 0.5, 0.5, 0.1)
+                edge_width = 0.2
                 
             for fkey in mesh.faces():
                 pts = [mesh.vertex_coordinates(vkey) for vkey in mesh.face_vertices(fkey)]
@@ -74,12 +78,12 @@ def render_geometry_matplotlib(json_file, output_prefix, view='top'):
                     y = [p[1] for p in pts]
                     z = [p[2] for p in pts]
                     verts = [list(zip(x, y, z))]
-                    poly = Poly3DCollection(verts, alpha=alpha_val, facecolor=color, edgecolor=edge_color)
+                    poly = Poly3DCollection(verts, facecolor=color, edgecolor=edge_color, linewidth=edge_width)
                     ax.add_collection3d(poly)
                 else:
                     x = [p[idx1] for p in pts] + [pts[0][idx1]]
                     y = [p[idx2] for p in pts] + [pts[0][idx2]]
-                    ax.fill(x, y, facecolor=color, edgecolor=edge_color, alpha=alpha_val)
+                    ax.fill(x, y, facecolor=color, edgecolor=edge_color, linewidth=edge_width)
 
         # Plot lines (wireframe/edges)
         for line in lines:

@@ -127,7 +127,7 @@ cy = (Y_SPAN[0] + Y_SPAN[1]) / 2.0
 form = FormDiagram.create_fan(
     x_span=X_SPAN, 
     y_span=Y_SPAN, 
-    n_fans=N_DISCRETISATION, 
+    n_fans=4 * N_DISCRETISATION, 
     n_hoops=N_DISCRETISATION
 )
 
@@ -273,6 +273,7 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
     center_vkey = min(list(fdiagram.vertices()), key=lambda v: (fdiagram.vertex_attribute(v, 'x') - cx)**2 + (fdiagram.vertex_attribute(v, 'y') - cy)**2)
     corner = [cx, cy, fdiagram.vertex_attribute(center_vkey, 'z')]
 
+    # Export full vault
     with open(json_path, 'w') as f:
         import json
         from compas.data import json_dump
@@ -285,6 +286,26 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
             "meshes": meshes
         }, f)
     print(f"Exported: {json_path}")
+
+    # NEW: Export quadrant-only JSON
+    quad_path = json_path.replace("_geometry.json", "_quadrant_geometry.json")
+    quad_meshes = meshes[:num_sectors_per_quad]
+    
+    # Collect points and edges for the quadrant
+    quad_v_keys = set()
+    for m in quad_meshes:
+        for v in m.vertices():
+            # Vertex coordinates are stored in the mesh
+            p = m.vertex_coordinates(v)
+            quad_v_keys.add(tuple(p))
+            
+    # We'll just export meshes in the quadrant JSON as that's what the renderer uses
+    with open(quad_path, 'w') as f:
+        json_dump({
+            "meshes": quad_meshes,
+            "quadrant_corner": corner
+        }, f)
+    print(f"Exported: {quad_path}")
 
 # ==============================================================================
 # 4. Structural Analysis
