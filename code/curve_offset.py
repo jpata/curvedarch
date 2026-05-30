@@ -251,20 +251,25 @@ def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unr
 
 def generate_flat_patterns():
     global instructions_data, FLAT_Z_OFFSET
-    num_expected_strips = max(0, len(instructions_data) - 1)
-    flat_meshes, spacing_x, spacing_y, strips_per_row = [], 15.0, 15.0, 5
+    num_expected_strips = max(0, len(instructions_data))
+    flat_meshes, spacing_x, spacing_y, strips_per_row = [], 15.0, 15.0, 10
+    
+    # We now process ALL strips in a circular loop
     for i in range(num_expected_strips):
-        poly1_3d, poly2_3d = instructions_data[i], instructions_data[i+1]
+        poly1_3d = instructions_data[i]
+        # Close the loop: last spoke joins with the first one
+        poly2_3d = instructions_data[(i + 1) % num_expected_strips]
+        
         col, row = i % strips_per_row, i // strips_per_row
         flat_start_point = Point(col * spacing_x, row * spacing_y, FLAT_Z_OFFSET)
         p0, p1 = poly1_3d.points[0], poly1_3d.points[1]
+        
         initial_unroll_direction = Vector(p1.x - p0.x, p1.y - p0.y, 0)
         if initial_unroll_direction.length < 1e-6: initial_unroll_direction = Vector(1,0,0)
         else: initial_unroll_direction.unitize()
+        
         mesh, distortions = develop_strip_to_plane(poly1_3d, poly2_3d, flat_start_point, initial_unroll_direction)
         if mesh:
-            # Store the original 3D angle for quadrant filtering
-            mesh.attributes['angle'] = math.atan2(p1.y - p0.y, p1.x - p0.x)
             max_d = max(distortions) if distortions else 0
             avg_d = sum(distortions)/len(distortions) if distortions else 0
             print(f"Strip {i}: Max distortion = {max_d:.6f}, Avg distortion = {avg_d:.6f}")
