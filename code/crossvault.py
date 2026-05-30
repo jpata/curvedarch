@@ -104,7 +104,7 @@ HC_RISE = 2.0
 THICKNESS = 1.0
 
 # Discretisation
-N_DISCRETISATION = 2
+N_DISCRETISATION = 8
 
 # ==============================================================================
 # 2. Geometry Setup
@@ -143,79 +143,192 @@ for vkey in form.vertices():
 # ==============================================================================
 
 def get_spokes_indices(form, cx, cy):
-    """Identifies radial spokes (crease lines) in the form diagram."""
+    """Identifies radial spokes by tracing from boundary vertices back to the crown with geometric bias."""
     vkeys = list(form.vertices())
     center_vkey = min(vkeys, key=lambda v: (form.vertex_attribute(v, 'x') - cx)**2 + (form.vertex_attribute(v, 'y') - cy)**2)
-    
-    spokes_indices = []
+    from collections import deque
+    hop_dist = {center_vkey: 0}
+    q = deque([center_vkey])
+    while q:
+        u = q.popleft()
+        for v in form.vertex_neighbors(u):
+            if v not in hop_dist:
+                hop_dist[v] = hop_dist[u] + 1
+                q.append(v)
+    boundary_vs = form.vertices_on_boundary()
+    spokes = []
     vkey_to_idx = {vkey: i for i, vkey in enumerate(vkeys)}
-    
-    # Trace from each neighbor of the center vertex
-    for start_nbr in form.vertex_neighbors(center_vkey):
-        spoke = [center_vkey, start_nbr]
-        curr = start_nbr
-        prev = center_vkey
-        while True:
-            candidates = []
-            for nbr2 in form.vertex_neighbors(curr):
-                if nbr2 == prev: continue
-                p_prev = form.vertex_coordinates(prev)
-                p_curr = form.vertex_coordinates(curr)
-                p_next = form.vertex_coordinates(nbr2)
-                v1 = Vector(p_curr[0]-p_prev[0], p_curr[1]-p_prev[1], 0)
-                v2 = Vector(p_next[0]-p_curr[0], p_next[1]-p_curr[1], 0)
-                if v1.length > 1e-8 and v2.length > 1e-8:
-                    dot = v1.unitized().dot(v2.unitized())
-                    if dot > 0.7:
-                        candidates.append((dot, nbr2))
-            
-            if not candidates: break
-            candidates.sort(key=lambda x: x[0], reverse=True)
-            next_v = candidates[0][1]
-            spoke.append(next_v)
-            prev, curr = curr, next_v
-        
-        spokes_indices.append([vkey_to_idx[v] for v in spoke])
-    
-    def get_spoke_angle(s_idx):
-        p0 = form.vertex_coordinates(vkeys[s_idx[0]])
-        p1 = form.vertex_coordinates(vkeys[s_idx[1]])
-        return math.atan2(p1[1] - p0[1], p1[0] - p0[0])
-    
-    spokes_indices.sort(key=get_spoke_angle)
-    return spokes_indices
+    for b_v in boundary_vs:
+        path = [b_v]
+        curr = b_v
+        while curr != center_vkey:
+            nbrs = form.vertex_neighbors(curr)
+            def score(v):
+                d = hop_dist.get(v, 999)
+                p1 = form.vertex_coordinates(center_vkey)
+                p2 = form.vertex_coordinates(b_v)
+                p3 = form.vertex_coordinates(v)
+                v1 = Vector.from_start_end(p1, p2)
+                v2 = Vector.from_start_end(p1, p3)
+                dist = v2.length * math.sin(v1.angle(v2)) if v1.length > 1e-8 and v2.length > 1e-8 else 0
+                return (d, dist)
+            best_nbr = min(nbrs, key=score)
+            path.append(best_nbr)
+            curr = best_nbr
+        path.reverse()
+        spokes.append([vkey_to_idx[v] for v in path])
+    unique_spokes = []
+    seen = set()
+    for s in spokes:
+        t = tuple(s)
+        if t not in seen:
+            unique_spokes.append(s)
+            seen.add(t)
+    unique_spokes.sort(key=lambda s: math.atan2(form.vertex_attribute(vkeys[s[-1]], 'y') - cy, form.vertex_attribute(vkeys[s[-1]], 'x') - cx))
+    return unique_spokes
 
-def export_vault_geometry(analysis, spokes, obj_path, json_path, cx, cy):
-    """Exports optimized geometry to OBJ and JSON formats."""
+def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy):
+    """Exports optimized geometry using Topological Corner Growth sectoring."""
     fdiagram = analysis.formdiagram
     vkey_to_idx = {vkey: i for i, vkey in enumerate(fdiagram.vertices())}
-    
-    points = [[fdiagram.vertex_attribute(v, 'x'), 
-               fdiagram.vertex_attribute(v, 'y'), 
-               fdiagram.vertex_attribute(v, 'z')] for v in fdiagram.vertices()]
-    
+    points = [[fdiagram.vertex_attribute(v, 'x'), fdiagram.vertex_attribute(v, 'y'), fdiagram.vertex_attribute(v, 'z')] for v in fdiagram.vertices()]
     edges = [(vkey_to_idx[u], vkey_to_idx[v]) for u, v in fdiagram.edges()]
     
+    # 1. Identify Corners
+    corners = {
+        0: (X_SPAN[0], Y_SPAN[0]),
+        1: (X_SPAN[1], Y_SPAN[0]),
+        2: (X_SPAN[1], Y_SPAN[1]),
+        3: (X_SPAN[0], Y_SPAN[1])
+    }
+    corner_vkeys = {}
+    for v in fdiagram.vertices():
+        x, y = fdiagram.vertex_coordinates(v)[:2]
+        for q, (cx_c, cy_c) in corners.items():
+            if abs(x - cx_c) < 1e-6 and abs(y - cy_c) < 1e-6:
+                corner_vkeys[q] = v
+
+    # 2. Extract root faces and assign sector IDs
+    root_faces = []
+    num_sectors_per_quad = N_DISCRETISATION
+    for q in range(4):
+        c_vkey = corner_vkeys[q]
+        c_faces = fdiagram.vertex_faces(c_vkey)
+        cx_c, cy_c = corners[q]
+        def face_angle(fkey):
+            pts = [fdiagram.vertex_coordinates(v) for v in fdiagram.face_vertices(fkey)]
+            mx = sum(p[0] for p in pts) / len(pts)
+            my = sum(p[1] for p in pts) / len(pts)
+            return math.atan2(my - cy_c, mx - cx_c)
+        c_faces.sort(key=face_angle)
+        
+        # Calculate how many corner faces make up one structural sector
+        faces_per_sector = len(c_faces) // num_sectors_per_quad
+        for i, fkey in enumerate(c_faces):
+            sector_id = q * num_sectors_per_quad + (i // faces_per_sector)
+            root_faces.append((fkey, sector_id))
+
+    # 3. Propagate sector IDs topologically
+    from collections import deque
+    face_to_sector = {}
+    q_bfs = deque()
+    for fkey, sid in root_faces:
+        face_to_sector[fkey] = sid
+        q_bfs.append(fkey)
+        
+    while q_bfs:
+        curr_f = q_bfs.popleft()
+        sid = face_to_sector[curr_f]
+        for nbr_f in fdiagram.face_neighbors(curr_f):
+            if nbr_f not in face_to_sector:
+                face_to_sector[nbr_f] = sid
+                q_bfs.append(nbr_f)
+                
+    # 4. Create strip meshes
+    from compas.datastructures import Mesh
+    from collections import defaultdict
+    sector_to_faces = defaultdict(list)
+    for fkey, sid in face_to_sector.items():
+        sector_to_faces[sid].append(fkey)
+        
+    meshes = []
+    num_total_sectors = 4 * num_sectors_per_quad
+    for i in range(num_total_sectors):
+        fkeys = sector_to_faces.get(i, [])
+        strip_mesh = Mesh()
+        v_map = {}
+        for fk in fkeys:
+            for v in fdiagram.face_vertices(fk):
+                if v not in v_map:
+                    p = fdiagram.vertex_coordinates(v)
+                    v_map[v] = strip_mesh.add_vertex(x=p[0], y=p[1], z=p[2])
+            strip_mesh.add_face([v_map[v] for v in fdiagram.face_vertices(fk)])
+        meshes.append(strip_mesh)
+        
+    # 5. Extract spokes for unroller by finding topological boundaries between sectors
+    vkeys = list(fdiagram.vertices())
+    center_vkey = min(vkeys, key=lambda v: (fdiagram.vertex_attribute(v, 'x') - cx)**2 + (fdiagram.vertex_attribute(v, 'y') - cy)**2)
+    hop_dist = {center_vkey: 0}
+    q = deque([center_vkey])
+    while q:
+        u = q.popleft()
+        for v in fdiagram.vertex_neighbors(u):
+            if v not in hop_dist:
+                hop_dist[v] = hop_dist[u] + 1
+                q.append(v)
+                
+    boundary_vs = fdiagram.vertices_on_boundary()
+    final_spokes = []
+    seen_paths = set()
+    
+    # We find paths from boundary to center prioritizing edges that separate sectors
+    for b_v in boundary_vs:
+        path = [b_v]
+        curr = b_v
+        target_angle = math.atan2(fdiagram.vertex_attribute(b_v, 'y') - cy, fdiagram.vertex_attribute(b_v, 'x') - cx)
+        while curr != center_vkey:
+            nbrs = fdiagram.vertex_neighbors(curr)
+            def score(v):
+                d = hop_dist.get(v, 999)
+                ang = math.atan2(fdiagram.vertex_attribute(v, 'y') - cy, fdiagram.vertex_attribute(v, 'x') - cx)
+                ang_diff = abs(math.atan2(math.sin(ang - target_angle), math.cos(ang - target_angle)))
+                return (d, ang_diff)
+            best_nbr = min(nbrs, key=score)
+            path.append(best_nbr)
+            curr = best_nbr
+        path.reverse()
+        final_spokes.append([vkey_to_idx[v] for v in path])
+        
+    # Sort and filter unique spokes 
+    # (Since there are 33 boundary vertices per quadrant, we have ~132 spokes, unroller will use them all to stay accurate)
+    final_spokes.sort(key=lambda s: math.atan2(fdiagram.vertex_attribute(vkeys[s[-1]], 'y') - cy, fdiagram.vertex_attribute(vkeys[s[-1]], 'x') - cx))
+    unique_spokes = []
+    seen = set()
+    for s in final_spokes:
+        t = tuple(s)
+        if t not in seen:
+            unique_spokes.append(s)
+            seen.add(t)
+
     with open(obj_path, 'w') as f:
-        for p in points:
-            f.write(f"v {p[0]} {p[1]} {p[2]}\n")
-        for u, v in edges:
-            f.write(f"l {u+1} {v+1}\n")
+        for p in points: f.write(f"v {p[0]} {p[1]} {p[2]}\n")
+        for u, v in edges: f.write(f"l {u+1} {v+1}\n")
 
     from compas.geometry import Point, Line
     compas_points = [Point(*p) for p in points]
     compas_lines = [Line(points[u], points[v]) for u, v in edges]
-    
-    center_vkey = min(list(fdiagram.vertices()), key=lambda v: (fdiagram.vertex_attribute(v, 'x') - cx)**2 + (fdiagram.vertex_attribute(v, 'y') - cy)**2)
     corner = [cx, cy, fdiagram.vertex_attribute(center_vkey, 'z')]
 
     with open(json_path, 'w') as f:
+        import json
+        from compas.data import json_dump
         json_dump({
             "points": compas_points,
             "lines": compas_lines,
             "edge_point_indices": edges,
             "quadrant_corner": corner,
-            "spokes": spokes
+            "spokes": unique_spokes,
+            "meshes": meshes
         }, f)
     print(f"Exported: {json_path}")
 

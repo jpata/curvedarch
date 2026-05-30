@@ -189,17 +189,18 @@ def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unr
         d_qc_pn = Q_curr_3d.distance_to_point(P_next_3d)
         
         d_pq = P_curr_flat.distance_to_point(Q_curr_flat)
-        if d_pq < 1e-8:
-            # Degenerate start (tip of triangle)
+        if d_pq < 1e-6:
             P_next_flat = P_curr_flat + unroll_dir_xy * d_pc_pn
         else:
-            intersections = intersection_circle_circle_xy(((P_curr_flat, xy_plane_normal), d_pc_pn), ((Q_curr_flat, xy_plane_normal), d_qc_pn))
+            try:
+                intersections = intersection_circle_circle_xy(((P_curr_flat, xy_plane_normal), d_pc_pn), ((Q_curr_flat, xy_plane_normal), d_qc_pn))
+            except ValueError:
+                intersections = []
+                
             if not intersections:
-                # Handle near-miss
-                vec = Vector.from_start_end(P_curr_flat, Q_curr_flat).unitized()
-                P_next_flat = P_curr_flat + vec * d_pc_pn
+                # Handle near-miss or tangency: place P_next on the line P_curr-Q_curr or forward
+                P_next_flat = P_curr_flat + unroll_dir_xy * d_pc_pn
             else:
-                # Choose the one that goes "forward"
                 if len(intersections) > 1:
                     v0 = Vector.from_start_end(P_curr_flat, Point(*intersections[0]))
                     v1 = Vector.from_start_end(P_curr_flat, Point(*intersections[1]))
@@ -214,15 +215,17 @@ def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unr
         d_qc_qn = Q_curr_3d.distance_to_point(Q_next_3d)
         
         d_pnqc = P_next_flat.distance_to_point(Q_curr_flat)
-        if d_pnqc < 1e-8:
-            Q_next_flat = P_next_flat.copy()
+        if d_pnqc < 1e-6:
+            Q_next_flat = P_next_flat + unroll_dir_xy * d_qc_qn # Fallback
         else:
-            intersections = intersection_circle_circle_xy(((P_next_flat, xy_plane_normal), d_pn_qn), ((Q_curr_flat, xy_plane_normal), d_qc_qn))
+            try:
+                intersections = intersection_circle_circle_xy(((P_next_flat, xy_plane_normal), d_pn_qn), ((Q_curr_flat, xy_plane_normal), d_qc_qn))
+            except ValueError:
+                intersections = []
+                
             if not intersections:
-                vec = Vector.from_start_end(P_next_flat, Q_curr_flat).unitized()
-                Q_next_flat = P_next_flat + vec * d_pn_qn
+                Q_next_flat = Q_curr_flat + unroll_dir_xy * d_qc_qn
             else:
-                # Choose the one that is on the "other" side of the P-spoke
                 if len(intersections) > 1:
                     rung_vec = Vector.from_start_end(P_curr_flat, Q_curr_flat)
                     if rung_vec.length < 1e-8: rung_vec = xy_plane_normal.cross(unroll_dir_xy)

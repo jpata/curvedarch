@@ -47,7 +47,29 @@ def render_geometry_matplotlib(json_file, output_prefix, view='top'):
 
         has_data = False
         
-        # Plot lines
+        # Consistent colormap for strips
+        cmap = plt.cm.tab20
+        
+        # Plot meshes with unique colors
+        for i, mesh in enumerate(meshes):
+            has_data = True
+            color = cmap(i % 20)
+            for fkey in mesh.faces():
+                pts = [mesh.vertex_coordinates(vkey) for vkey in mesh.face_vertices(fkey)]
+                if view == 'perspective':
+                    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+                    x = [p[0] for p in pts]
+                    y = [p[1] for p in pts]
+                    z = [p[2] for p in pts]
+                    verts = [list(zip(x, y, z))]
+                    poly = Poly3DCollection(verts, alpha=0.6, facecolor=color, edgecolor='none')
+                    ax.add_collection3d(poly)
+                else:
+                    x = [p[idx1] for p in pts] + [pts[0][idx1]]
+                    y = [p[idx2] for p in pts] + [pts[0][idx2]]
+                    ax.fill(x, y, facecolor=color, edgecolor='none', alpha=0.8)
+
+        # Plot lines (wireframe/edges)
         for line in lines:
             has_data = True
             try:
@@ -55,26 +77,10 @@ def render_geometry_matplotlib(json_file, output_prefix, view='top'):
                 else: p1, p2 = line[0], line[1]
                 
                 if view == 'perspective':
-                    ax.plot([p1[0], p2[0]], [p1[1], p2[1]], [p1[2], p2[2]], color='black', linewidth=0.5)
+                    ax.plot([p1[0], p2[0]], [p1[1], p2[1]], [p1[2], p2[2]], color='black', linewidth=0.3, alpha=0.5)
                 else:
-                    ax.plot([p1[idx1], p2[idx1]], [p1[idx2], p2[idx2]], color='black', linewidth=1)
+                    ax.plot([p1[idx1], p2[idx1]], [p1[idx2], p2[idx2]], color='black', linewidth=0.5, alpha=0.3)
             except Exception: continue
-
-        # Plot meshes
-        for mesh in meshes:
-            has_data = True
-            for fkey in mesh.faces():
-                pts = [mesh.vertex_coordinates(vkey) for vkey in mesh.face_vertices(fkey)]
-                if view == 'perspective':
-                    # Simplified: plot face edges in 3D
-                    x = [p[0] for p in pts] + [pts[0][0]]
-                    y = [p[1] for p in pts] + [pts[0][1]]
-                    z = [p[2] for p in pts] + [pts[0][2]]
-                    ax.plot(x, y, z, color='blue', linewidth=0.2, alpha=0.5)
-                else:
-                    x = [p[idx1] for p in pts] + [pts[0][idx1]]
-                    y = [p[idx2] for p in pts] + [pts[0][idx2]]
-                    ax.fill(x, y, facecolor='lightblue', edgecolor='blue', linewidth=0.5, alpha=0.5)
 
         if not has_data:
             print(f"Warning: No geometry data to render for {json_file}")
@@ -86,15 +92,15 @@ def render_geometry_matplotlib(json_file, output_prefix, view='top'):
             ax.set_ylabel('Y')
             ax.set_zlabel('Z')
             # Equalize axes
-            pts_array = []
+            pts_all = []
             if points:
-                pts_array = np.array([[p[0], p[1], p[2]] for p in points])
+                pts_all = [[p[0], p[1], p[2]] for p in points]
             elif meshes:
                 for m in meshes:
-                    pts_array.extend([m.vertex_coordinates(v) for v in m.vertices()])
-                pts_array = np.array(pts_array)
+                    pts_all.extend([m.vertex_coordinates(v) for v in m.vertices()])
             
-            if len(pts_array) > 0:
+            if pts_all:
+                pts_array = np.array(pts_all)
                 X, Y, Z = pts_array[:, 0], pts_array[:, 1], pts_array[:, 2]
                 max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() / 2.0
                 mid_x = (X.max()+X.min()) * 0.5
