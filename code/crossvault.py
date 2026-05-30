@@ -241,6 +241,7 @@ print("MAXIMUM THRUST ANALYSIS (Full Vault)")
 print("-" * 30)
 analysis_max = Analysis.create_maxthrust_analysis(form, vault, printout=True)
 analysis_max.optimiser.set_variables(['q'])
+analysis_max.optimiser.set_starting_point('current') # Use min_thrust solution as start
 analysis_max.apply_selfweight()
 analysis_max.apply_envelope()
 analysis_max.set_up_optimiser()
