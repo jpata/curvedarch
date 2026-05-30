@@ -223,7 +223,7 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
         c_faces.sort(key=face_angle)
         
         for i, fkey in enumerate(c_faces):
-            sector_id = q * num_sectors_per_quad + i
+            sector_id = q * len(c_faces) + i
             root_faces.append((fkey, sector_id))
 
     # 3. Propagate sector IDs topologically
@@ -250,7 +250,7 @@ def export_vault_geometry(analysis, spokes_ignored, obj_path, json_path, cx, cy)
         sector_to_faces[sid].append(fkey)
         
     meshes = []
-    num_total_sectors = 4 * num_sectors_per_quad
+    num_total_sectors = 4 * len(c_faces)
     for i in range(num_total_sectors):
         fkeys = sector_to_faces.get(i, [])
         strip_mesh = Mesh()
