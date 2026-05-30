@@ -5,7 +5,7 @@ import threading
 import queue
 import time # For potential debugging or yielding
 
-from compas.geometry import Point, Vector, Polygon, Rotation, NurbsCurve, Polyline
+from compas.geometry import Point, Vector, Polygon, Rotation, Bezier, Polyline
 from compas.datastructures import Mesh
 from compas.colors import Color
 from compas_viewer import Viewer
@@ -373,7 +373,7 @@ def optimization_worker():
 if __name__ == "__main__":
     # Define initial crease curve
     cp1, cp2, cp3, cp4 = Point(-2,0,0), Point(-1,1.5,0), Point(1,1.5,0), Point(2,0,0)
-    initial_curved_crease_nurbs = NurbsCurve.from_points([cp1,cp2,cp3,cp4], degree=3)
+    initial_curved_crease_nurbs = Bezier([cp1,cp2,cp3,cp4])
     domain_start, domain_end = initial_curved_crease_nurbs.domain
     if domain_start is None or domain_end is None : raise ValueError("Curve domain error.")
 

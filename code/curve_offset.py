@@ -477,11 +477,8 @@ def setup_ui():
 
     print("\n=== SETTING UP UI ===")
 
-    dock = QDockWidget("Catenary Parameters")
-    dock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable) 
-    
-    scroll_area = QScrollArea()
-    scroll_area.setWidgetResizable(True)
+    from compas_viewer.components import Component
+    ui_component = Component()
     
     main_widget = QWidget()
     main_layout = QVBoxLayout(main_widget)
@@ -534,10 +531,8 @@ def setup_ui():
     spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
     main_layout.addSpacerItem(spacer)
     
-    scroll_area.setWidget(main_widget)
-    dock.setWidget(scroll_area)
-    
-    viewer.ui.sidedock.add(dock)
+    ui_component.widget = main_widget
+    viewer.ui.sidedock.add(ui_component)
     print("UI Setup Complete.")
 
 

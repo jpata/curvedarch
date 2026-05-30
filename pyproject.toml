@@ -1,0 +1,30 @@
+[project]
+name = "curvedarch"
+version = "0.1.0"
+description = "Curved arch simulation"
+requires-python = ">=3.10"
+dependencies = [
+    "compas",
+    "compas_tna",
+    "cvxpy",
+    "compas_viewer",
+    "matplotlib",
+    "compas_tno @ git+https://github.com/BlockResearchGroup/compas_tno.git@main",
+    "cadquery>=2.7.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "cyipopt>=1.7.0",
+    "torch",
+    "geomdl>=5.4.0",
+    "compas-occ",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["vault_code"]
+
+[tool.uv.sources]
+compas-occ = { git = "https://github.com/compas-dev/compas_occ.git", rev = "main" }
