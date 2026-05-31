@@ -1,3 +1,4 @@
+import json
 import math
 import numpy as np
 from compas_tna.diagrams import FormDiagram
@@ -6,7 +7,7 @@ from compas_tno.analysis import Analysis
 from vault_shared import crossvault_middle_hc, fanvault_middle_hc, CONFIG
 
 # ----------------------------------------
-# 0. Shims for missing compas_tno modules
+# 0. Shims and Helpers
 # ----------------------------------------
 
 class GeneralVaultEnvelope(ParametricEnvelope):
@@ -21,9 +22,7 @@ class GeneralVaultEnvelope(ParametricEnvelope):
     
     def update_envelope(self):
         from compas_tna.diagrams.diagram_rectangular import create_cross_mesh
-        from compas.datastructures import Mesh
         n = self.discretisation if isinstance(self.discretisation, int) else self.discretisation[0]
-        # We use a dense cross mesh for the geometric representation
         self.middle = create_cross_mesh(x_span=self.x_span, y_span=self.y_span, n=n)
         for vertex in self.middle.vertices():
             x, y = self.middle.vertex_attributes(vertex, names=["x", "y"])
@@ -42,86 +41,91 @@ class GeneralVaultEnvelope(ParametricEnvelope):
         lb = z_mid - t/2
         return ub, lb
 
-class ShapeShim:
-    @staticmethod
-    def create_vault(xy_span, thk, desired_max_rise, vault_type, discretisation):
-        return GeneralVaultEnvelope(xy_span[0], xy_span[1], thk, desired_max_rise, vault_type=vault_type, discretisation=discretisation)
+def mesh_to_data(mesh):
+    return {
+        'vertices': [mesh.vertex_coordinates(v) for v in mesh.vertices()],
+        'faces': [mesh.face_vertices(f) for f in mesh.faces()]
+    }
 
-def export_thrust_network_to_json(form, path, **kwargs):
-    form.to_json(path)
-    print(f"Exported thrust network to {path}")
-    return True
+def diagram_to_wire_data(diagram):
+    return {
+        'vertices': [diagram.vertex_coordinates(v) for v in diagram.vertices()],
+        'edges': [list(edge) for edge in diagram.edges()]
+    }
 
 # ----------------------------------------
-# 1. Shape geometric definition
+# 1. Main Simulation
 # ----------------------------------------
+
 xy_span = CONFIG['xy_span']
 thickness = CONFIG['thickness']
 max_rise_at_crown = CONFIG['max_rise']
-discretisation_level = CONFIG['discretisation_level']
 vault_type = CONFIG['vault_type']
 
-# Create the vault shape
-vault = ShapeShim.create_vault(
-    xy_span=xy_span,
-    thk=thickness,
-    desired_max_rise=max_rise_at_crown,
-    vault_type=vault_type,
-    discretisation=discretisation_level
-)
+vault = GeneralVaultEnvelope(xy_span[0], xy_span[1], thickness, max_rise_at_crown, vault_type=vault_type, discretisation=CONFIG['discretisation_level'])
 
-# ----------------------------------------
-# 2. Form diagram geometric definition
-# ----------------------------------------
-n = CONFIG['form_discretisation']
+discretisation = CONFIG['form_discretisation']
 if vault_type == 'fan':
-    print(f"Creating fan form diagram with {n} fans and {n} hoops...")
-    form = FormDiagram.create_fan(x_span=xy_span[0], y_span=xy_span[1], n_fans=n, n_hoops=n)
+    form = FormDiagram.create_fan(x_span=xy_span[0], y_span=xy_span[1], n_fans=discretisation, n_hoops=discretisation)
 else:
-    print(f"Creating cross form diagram with n={n}...")
-    form = FormDiagram.create_cross(x_span=xy_span[0], y_span=xy_span[1], n=n)
+    form = FormDiagram.create_cross(x_span=xy_span[0], y_span=xy_span[1], n=discretisation)
 
-# Configure supports
+# Support logic
 if CONFIG['support_type'] == 'corners':
-    print("Configuring corner supports...")
-    # Support only the four corners
-    # Corners in a FormDiagram often have degree 2
     for vertex in form.vertices():
         if form.vertex_degree(vertex) <= 2 and form.is_vertex_on_boundary(vertex):
             form.vertex_attribute(vertex, 'is_support', True)
 else:
-    print("Configuring perimeter supports...")
-    # Support entire perimeter (distributed walls)
     for vertex in form.vertices():
         if form.is_vertex_on_boundary(vertex):
             form.vertex_attribute(vertex, 'is_support', True)
 
-# Set starting point to the middle of the envelope
+# Set starting point
 for vertex in form.vertices():
     x, y = form.vertex_attributes(vertex, names=["x", "y"])
     z_mid = vault.compute_middle([x], [y])[0]
     form.vertex_attribute(vertex, "z", z_mid)
 
-# --------------------------------------------
-# 3. Minimum thrust solution
-# --------------------------------------------
-print(f"\n--- Solving Minimum Thrust for {vault_type} vault ---")
-analysis = Analysis.create_minthrust_analysis(form, vault, printout=True, solver=CONFIG['solver'])
-analysis.apply_selfweight()
-analysis.apply_envelope()
-analysis.set_up_optimiser()
-analysis.run()
+# Solve Min Thrust
+print(f"Solving Min Thrust for {vault_type}...")
+# Create a copy of the form for the first analysis
+form_min = form.copy()
+analysis_min = Analysis.create_minthrust_analysis(form_min, vault, printout=False, solver=CONFIG['solver'])
+analysis_min.apply_selfweight()
+analysis_min.apply_envelope()
+analysis_min.set_up_optimiser()
+analysis_min.run()
 
-# Export the thrust network
-success = export_thrust_network_to_json(form, "./thrust_min.json", indent=2)
+# Solve Max Thrust
+print(f"Solving Max Thrust for {vault_type}...")
+# Create a second copy of the form for the second analysis
+form_max = form.copy()
+analysis_max = Analysis.create_maxthrust_analysis(form_max, vault, printout=False, solver=CONFIG['solver'])
+analysis_max.apply_selfweight()
+analysis_max.apply_envelope()
+analysis_max.set_up_optimiser()
+analysis_max.run()
 
-# # --------------------------------------------
-# # 4. Maximum thrust solution
-# # --------------------------------------------
-print(f"\n--- Solving Maximum Thrust for {vault_type} vault ---")
-analysis = Analysis.create_maxthrust_analysis(form, vault, printout=True, solver=CONFIG['solver'])
-analysis.apply_selfweight()
-analysis.apply_envelope()
-analysis.set_up_optimiser()
-analysis.run()
-success = export_thrust_network_to_json(form, "./thrust_max.json", indent=2)
+# ----------------------------------------
+# 2. Export All to Unified JSON
+# ----------------------------------------
+vault.update_envelope()
+intrados = vault.middle.copy()
+extrados = vault.middle.copy()
+for v in intrados.vertices():
+    z = intrados.vertex_attribute(v, 'z')
+    intrados.vertex_attribute(v, 'z', z - thickness/2)
+    extrados.vertex_attribute(v, 'z', z + thickness/2)
+
+export_data = {
+    'config': CONFIG,
+    'intrados': mesh_to_data(intrados),
+    'extrados': mesh_to_data(extrados),
+    'thrust_min': diagram_to_wire_data(form_min),
+    'thrust_max': diagram_to_wire_data(form_max)
+}
+
+with open('vault_model_data.json', 'w') as f:
+    json.dump(export_data, f, indent=2)
+
+print("Exported all model data to vault_model_data.json")
