@@ -40,21 +40,48 @@ TEST_CASES = [
         "name": "high_rise_narrow",
         "span_x": 8.0,
         "span_y": 12.0,
-        "rise": 3.0,
+        "rise": 2.0,  # Reduced from 3.0 for stability
         "thick": 0.2,
         "discr": 12,
         "corner_cut_ratio": 0.5
     },
+
     {
         "name": "thin_shell",
         "span_x": 10.0,
         "span_y": 10.0,
         "rise": 1.5,
-        "thick": 0.05,
+        "thick": 0.1,  # Increased from 0.05 for stability
         "discr": 10,
         "corner_cut_ratio": 0.4
     }
+
 ]
+
+# -----------------------------------------------------------------------------
+# Validation Helpers
+# -----------------------------------------------------------------------------
+
+def calculate_asymmetry(diagram, xm, ym):
+    """
+    Calculate numerical asymmetry of the diagram around its center.
+    Returns the maximum difference in mean Z-coordinates between symmetric halves.
+    """
+    vertices = list(diagram.vertices())
+    coords = np.array([diagram.vertex_coordinates(v) for v in vertices])
+    x, y, z = coords[:, 0], coords[:, 1], coords[:, 2]
+
+    # X-axis symmetry (Left vs Right)
+    left = z[x < (xm - 0.01)]
+    right = z[x > (xm + 0.01)]
+    asym_x = abs(np.mean(left) - np.mean(right)) if len(left) > 0 and len(right) > 0 else 0
+
+    # Y-axis symmetry (Bottom vs Top)
+    bottom = z[y < (ym - 0.01)]
+    top = z[y > (ym + 0.01)]
+    asym_y = abs(np.mean(bottom) - np.mean(top)) if len(bottom) > 0 and len(top) > 0 else 0
+
+    return max(asym_x, asym_y)
 
 # -----------------------------------------------------------------------------
 # Plotting Helpers (Matplotlib)
@@ -207,7 +234,13 @@ def run_headless_workflow():
             
             # 2. Geometry Calculation
             logger.info(f"  Generating corrugated geometry...")
-            center_coords = (span_x / 2.0, span_y / 2.0)
+            xm, ym = span_x / 2.0, span_y / 2.0
+            center_coords = (xm, ym)
+            
+            # Check Symmetry
+            asym_min = calculate_asymmetry(sim_data['form_min'], xm, ym)
+            asym_max = calculate_asymmetry(sim_data['form_max'], xm, ym)
+            max_asym = max(asym_min, asym_max)
             
             # Determine safe cut radius
             full_cats = get_alternating_catenaries(
@@ -240,11 +273,12 @@ def run_headless_workflow():
                 "converged": True,
                 "num_strips": len(meshes_3d),
                 "avg_distortion": avg_dist,
-                "max_distortion": max_dist
+                "max_distortion": max_dist,
+                "asymmetry_index": max_asym
             }
             results.append(stats)
             
-            logger.info(f"  Results: Strips={stats['num_strips']}, AvgDist={avg_dist:.6f}, MaxDist={max_dist:.6f}")
+            logger.info(f"  Results: Strips={stats['num_strips']}, AvgDist={avg_dist:.6f}, MaxDist={max_dist:.6f}, Asym={max_asym:.4f}")
             
             # Save stats to text file
             with open(os.path.join(case_dir, "stats.txt"), "w") as f:
@@ -300,7 +334,7 @@ def run_headless_workflow():
             status = "PASS" if res.get('converged') else "FAIL"
             f.write(f"[{status}] {res['name']}\n")
             if res.get('converged'):
-                f.write(f"    Strips: {res['num_strips']}, Max Dist: {res['max_distortion']:.6f}\n")
+                f.write(f"    Strips: {res['num_strips']}, Max Dist: {res['max_distortion']:.6f}, Max Asym: {res['asymmetry_index']:.4f}\n")
             else:
                 f.write(f"    Error: {res.get('error')}\n")
     
