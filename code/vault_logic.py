@@ -182,19 +182,15 @@ def get_alternating_catenaries(form_min, form_max, corner_cut_radius=0.5, center
     catenaries = []
     n_spokes = min(len(spokes_min_ids), len(spokes_max_ids))
     for i in range(n_spokes):
-        # Add MAX (Ridge)
-        ids_max, diagram_max = spokes_max_ids[i], form_max
-        pts_max = [Point(*diagram_max.vertex_coordinates(v)) for v in ids_max]
-        if corner_cut_radius > 1e-6 and len(pts_max) > 1:
-            pts_max = cut_polyline_at_radius(pts_max, pts_max[0], corner_cut_radius)
-        catenaries.append(Polyline(pts_max))
-
-        # Add MIN (Valley)
-        ids_min, diagram_min = spokes_min_ids[i], form_min
-        pts_min = [Point(*diagram_min.vertex_coordinates(v)) for v in ids_min]
-        if corner_cut_radius > 1e-6 and len(pts_min) > 1:
-            pts_min = cut_polyline_at_radius(pts_min, pts_min[0], corner_cut_radius)
-        catenaries.append(Polyline(pts_min))
+        if i % 2 == 0:
+            ids, diagram = spokes_max_ids[i], form_max
+        else:
+            ids, diagram = spokes_min_ids[i], form_min
+        
+        pts = [Point(*diagram.vertex_coordinates(v)) for v in ids]
+        if corner_cut_radius > 1e-6 and len(pts) > 1:
+            pts = cut_polyline_at_radius(pts, pts[0], corner_cut_radius)
+        catenaries.append(Polyline(pts))
             
     return catenaries
 
