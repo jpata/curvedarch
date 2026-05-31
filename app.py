@@ -71,17 +71,17 @@ def main():
     # v_type = st.sidebar.selectbox("Vault Type", ["fan", "cross"], index=0 if CONFIG['vault_type'] == 'fan' else 1)
     v_type = "fan"
     st.sidebar.info("Vault Type: Fan (Cross vault is currently disabled)")
-    span_x = st.sidebar.slider("Span X", 2.0, 20.0, 10.0, step=0.1)
-    span_y = st.sidebar.slider("Span Y", 2.0, 20.0, 10.0, step=0.1)
-    rise = st.sidebar.slider("Max Rise", 0.5, 5.0, 1.5)
-    thick = st.sidebar.slider("Thickness", 0.05, 1.0, 0.2)
+    span_x = st.sidebar.slider("Span X", 1.0, 20.0, 3.0, step=0.1)
+    span_y = st.sidebar.slider("Span Y", 1.0, 20.0, 1.8, step=0.1)
+    rise = st.sidebar.slider("Max Rise", 0.1, 5.0, 0.4)
+    thick = st.sidebar.slider("Thickness", 0.01, 1.0, 0.1)
     
     st.sidebar.header("2. TNA Parameters")
-    discr = st.sidebar.number_input("Form Discretisation", 5, 30, 10)
+    discr = st.sidebar.number_input("Form Discretisation", 5, 40, 12)
     solver = st.sidebar.selectbox("Solver", ["IPOPT", "SLSQP"], index=0)
     
     st.sidebar.header("3. Unrolling Parameters")
-    flat_z = st.sidebar.slider("Flat Z-Offset", -30.0, 10.0, -1.0)
+    flat_z = st.sidebar.slider("Flat Z-Offset", -30.0, 10.0, -5.0)
     
     # Pre-calculate safe cut radius if analysis has been run
     max_safe_radius = 3.0
@@ -99,7 +99,7 @@ def main():
         "Corner Cut Radius", 
         0.0, 
         float(max_safe_radius), 
-        min(0.5, float(max_safe_radius)), 
+        0.7 * float(max_safe_radius), 
         0.05
     )
     

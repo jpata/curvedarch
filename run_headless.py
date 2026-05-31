@@ -19,43 +19,14 @@ from code.vault_plots import create_structural_plot
 
 TEST_CASES = [
     {
-        "name": "standard_10x10",
-        "span_x": 10.0,
-        "span_y": 10.0,
-        "rise": 1.5,
-        "thick": 0.2,
-        "discr": 10,
-        "corner_cut_ratio": 0.5  # ratio of max safe radius
-    },
-    {
-        "name": "large_span_16x16",
-        "span_x": 16.0,
-        "span_y": 16.0,
-        "rise": 2.5,
-        "thick": 0.3,
-        "discr": 16,
-        "corner_cut_ratio": 0.3
-    },
-    {
-        "name": "high_rise_narrow",
-        "span_x": 8.0,
-        "span_y": 12.0,
-        "rise": 2.0,  # Reduced from 3.0 for stability
-        "thick": 0.2,
+        "name": "iass_2024_prototype_3x1_8",
+        "span_x": 3.0,
+        "span_y": 1.8,
+        "rise": 0.4,
+        "thick": 0.10,
         "discr": 12,
-        "corner_cut_ratio": 0.5
-    },
-
-    {
-        "name": "thin_shell",
-        "span_x": 10.0,
-        "span_y": 10.0,
-        "rise": 1.5,
-        "thick": 0.1,  # Increased from 0.05 for stability
-        "discr": 10,
-        "corner_cut_ratio": 0.4
+        "corner_cut_ratio": 0.7
     }
-
 ]
 
 # -----------------------------------------------------------------------------
