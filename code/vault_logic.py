@@ -194,6 +194,33 @@ def get_alternating_catenaries(form_min, form_max, corner_cut_radius=0.5, center
             
     return catenaries
 
+def compute_max_safe_cut_radius(catenaries):
+    """
+    Computes the maximum radius that can be applied to all catenaries
+    while ensuring they all retain the same number of nodes.
+    """
+    if not catenaries:
+        return 0.0
+    
+    # For each catenary, find the distance to the furthest point that would
+    # still leave at least 2 points (the minimum needed for a line segment).
+    # However, to be safe and consistent, we want to find the radius
+    # that doesn't "jump" a node on any catenary.
+    
+    # The limit is the distance to the 2nd node of the "shortest" spoke
+    min_dist_to_second_node = float('inf')
+    for cat in catenaries:
+        if len(cat.points) < 2:
+            continue
+        p0 = cat.points[0]
+        p1 = cat.points[1]
+        dist = math.hypot(p1.x - p0.x, p1.y - p0.y)
+        if dist < min_dist_to_second_node:
+            min_dist_to_second_node = dist
+            
+    # We return slightly less than the absolute limit to avoid precision issues
+    return max(0.0, min_dist_to_second_node - 0.01)
+
 def generate_vault_meshes(catenaries, flat_z_offset=-15.0):
     three_d_meshes = []
     flat_meshes = []
@@ -203,6 +230,16 @@ def generate_vault_meshes(catenaries, flat_z_offset=-15.0):
     for i in range(num_strips):
         poly1_3d, poly2_3d = catenaries[i], catenaries[i+1]
         
+        # Validation
+        n1, n2 = len(poly1_3d.points), len(poly2_3d.points)
+        if n1 != n2:
+            raise ValueError(
+                f"Catenary length mismatch at strip {i}: "
+                f"Left has {n1} points, Right has {n2} points. "
+                "This usually happens when 'Corner Cut Radius' is too large, "
+                "causing different numbers of segments to be trimmed from adjacent spokes."
+            )
+
         # 3D Mesh
         verts_3d = poly1_3d.points + poly2_3d.points
         faces_3d = []

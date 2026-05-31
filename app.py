@@ -4,7 +4,7 @@ import numpy as np
 import os
 import math
 
-from code.vault_logic import get_alternating_catenaries, generate_vault_meshes
+from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius
 from code.crossvault import run_tna_simulation
 from code.vault_shared import CONFIG
 from code.vault_plots import create_structural_plot
@@ -80,7 +80,26 @@ def main():
     
     st.sidebar.header("3. Unrolling Parameters")
     flat_z = st.sidebar.slider("Flat Z-Offset", -30.0, 10.0, -1.0)
-    corner_cut = st.sidebar.slider("Corner Cut Radius", 0.0, 3.0, 0.5, 0.1)
+    
+    # Pre-calculate safe cut radius if analysis has been run
+    max_safe_radius = 3.0
+    if st.session_state.get('sim_data'):
+        # Get catenaries without any cut first to see the full range
+        full_cats = get_alternating_catenaries(
+            st.session_state.sim_data['form_min'], 
+            st.session_state.sim_data['form_max'], 
+            corner_cut_radius=0.0,
+            center_coords=st.session_state.get('center_coords', (5.0, 5.0))
+        )
+        max_safe_radius = compute_max_safe_cut_radius(full_cats)
+
+    corner_cut = st.sidebar.slider(
+        "Corner Cut Radius", 
+        0.0, 
+        float(max_safe_radius), 
+        min(0.5, float(max_safe_radius)), 
+        0.05
+    )
     
     st.sidebar.header("4. Visibility")
     show_3d = st.sidebar.checkbox("Show 3D Surface", value=True)
@@ -121,21 +140,27 @@ def main():
             except Exception as e:
                 st.error(f"Solver failed: {e}")
 
-    # Main Tabs
+    # Visualization
     if st.session_state.sim_data:
         tab1, tab2 = st.tabs(["Corrugated Geometry", "Structural Validation"])
-        
+
         with tab1:
-            with st.spinner("Generating Corrugated Geometry..."):
-                catenaries = get_alternating_catenaries(
-                    st.session_state.sim_data['form_min'], 
-                    st.session_state.sim_data['form_max'], 
-                    corner_cut,
-                    center_coords=st.session_state.center_coords
-                )
-                meshes_3d, meshes_flat, distortions = generate_vault_meshes(catenaries, flat_z)
+            try:
+                with st.spinner("Generating Corrugated Geometry..."):
+                    catenaries = get_alternating_catenaries(
+                        st.session_state.sim_data['form_min'], 
+                        st.session_state.sim_data['form_max'], 
+                        corner_cut,
+                        center_coords=st.session_state.center_coords
+                    )
+                    meshes_3d, meshes_flat, distortions = generate_vault_meshes(catenaries, flat_z)
+            except ValueError as ve:
+                st.error(f"Geometry Generation Error: {ve}")
+                st.info("Try reducing the **Corner Cut Radius** to ensure all spokes retain the same number of nodes.")
+                return
 
             fig = go.Figure()
+
 
             # Add Catenaries
             if show_cats:
