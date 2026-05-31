@@ -3,16 +3,22 @@ import numpy as np
 from compas_tna.diagrams import FormDiagram
 from compas_viewer import Viewer
 from compas.colors import Color
-from vault_shared import crossvault_middle_hc, CONFIG
+from vault_shared import crossvault_middle_hc, fanvault_middle_hc, CONFIG
 
-def create_envelope_meshes(x_span, y_span, hc, thickness, n=50):
+def create_envelope_meshes(x_span, y_span, hc, thickness, vault_type='cross', n=50):
     from compas_tna.diagrams.diagram_rectangular import create_cross_mesh
+    # We use a cross mesh as the base for rendering the envelope surface
     mesh = create_cross_mesh(x_span=x_span, y_span=y_span, n=n)
     intrados = mesh.copy()
     extrados = mesh.copy()
+    
     for vertex in mesh.vertices():
         x, y = mesh.vertex_attributes(vertex, names=["x", "y"])
-        z_mid = crossvault_middle_hc([x], [y], x_span, y_span, hc)[0]
+        if vault_type == 'fan':
+            z_mid = fanvault_middle_hc([x], [y], x_span, y_span, hc)[0]
+        else:
+            z_mid = crossvault_middle_hc([x], [y], x_span, y_span, hc)[0]
+            
         intrados.vertex_attribute(vertex, "z", z_mid - thickness/2)
         extrados.vertex_attribute(vertex, "z", z_mid + thickness/2)
     return intrados, extrados
@@ -40,10 +46,11 @@ y_span = [min(ys), max(ys)]
 
 hc = CONFIG['max_rise']
 thickness = CONFIG['thickness']
+vault_type = CONFIG['vault_type']
 
-print(f"Rendering for Span: {x_span}, {y_span}, HC: {hc}, Thk: {thickness}")
+print(f"Rendering for {vault_type} vault | Span: {x_span}, {y_span} | HC: {hc} | Thk: {thickness}")
 
-intrados, extrados = create_envelope_meshes(x_span, y_span, hc, thickness)
+intrados, extrados = create_envelope_meshes(x_span, y_span, hc, thickness, vault_type=vault_type)
 
 # ----------------------------------------
 # 3. Render with compas_viewer
