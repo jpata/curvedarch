@@ -76,8 +76,19 @@ def load_tna_catenaries():
         spokes_min_ids = extract_spokes(form_min)
         spokes_max_ids = extract_spokes(form_max)
         
+        # Sort spokes by angle to ensure they are in order around the corner
+        def get_spoke_angle(spoke, diagram):
+            c_coords = diagram.vertex_attributes(spoke[0], names=['x', 'y'])
+            n_coords = diagram.vertex_attributes(spoke[1], names=['x', 'y'])
+            return math.atan2(n_coords[1] - c_coords[1], n_coords[0] - c_coords[0])
+
+        spokes_min_ids.sort(key=lambda s: get_spoke_angle(s, form_min))
+        spokes_max_ids.sort(key=lambda s: get_spoke_angle(s, form_max))
+        
         TNA_CATENARIES = []
-        for i in range(len(spokes_max_ids)):
+        # Use the min count to avoid indexing errors if networks differ slightly
+        n_spokes = min(len(spokes_min_ids), len(spokes_max_ids))
+        for i in range(n_spokes):
             if i % 2 == 0:
                 ids, diagram = spokes_max_ids[i], form_max
             else:
@@ -87,7 +98,7 @@ def load_tna_catenaries():
             TNA_CATENARIES.append(Polyline(pts))
         
         USE_TNA = True
-        print(f"Loaded {len(TNA_CATENARIES)} TNA catenaries.")
+        print(f"Loaded {len(TNA_CATENARIES)} TNA catenaries sorted by angle.")
         regenerate_all_geometry()
     except Exception as e:
         print(f"Error loading TNA data: {e}")
