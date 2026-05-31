@@ -69,8 +69,8 @@ def main():
     
     st.sidebar.header("1. Vault Geometry")
     v_type = st.sidebar.selectbox("Vault Type", ["fan", "cross"], index=0 if CONFIG['vault_type'] == 'fan' else 1)
-    span_x = st.sidebar.slider("Span X", 2.0, 20.0, 10.0)
-    span_y = st.sidebar.slider("Span Y", 2.0, 20.0, 10.0)
+    span_x = st.sidebar.slider("Span X", 2.0, 20.0, 10.0, step=0.1)
+    span_y = st.sidebar.slider("Span Y", 2.0, 20.0, 10.0, step=0.1)
     rise = st.sidebar.slider("Max Rise", 0.5, 5.0, 1.5)
     thick = st.sidebar.slider("Thickness", 0.05, 1.0, 0.2)
     
@@ -79,16 +79,16 @@ def main():
     solver = st.sidebar.selectbox("Solver", ["IPOPT", "SLSQP"], index=0)
     
     st.sidebar.header("3. Unrolling Parameters")
-    flat_z = st.sidebar.slider("Flat Z-Offset", -30.0, 10.0, -15.0)
+    flat_z = st.sidebar.slider("Flat Z-Offset", -30.0, 10.0, -1.0)
     corner_cut = st.sidebar.slider("Corner Cut Radius", 0.0, 3.0, 0.5, 0.1)
     
     st.sidebar.header("4. Visibility")
     show_3d = st.sidebar.checkbox("Show 3D Surface", value=True)
     show_flat = st.sidebar.checkbox("Show Flat Patterns", value=True)
     show_cats = st.sidebar.checkbox("Show Catenary Lines", value=True)
-    show_pts = st.sidebar.checkbox("Show Vertex Points", value=False)
-    show_intrados = st.sidebar.checkbox("Show Intrados (Envelope)", value=False)
-    show_extrados = st.sidebar.checkbox("Show Extrados (Envelope)", value=False)
+    show_pts = st.sidebar.checkbox("Show Vertex Points", value=True)
+    show_intrados = st.sidebar.checkbox("Show Intrados (Envelope)", value=True)
+    show_extrados = st.sidebar.checkbox("Show Extrados (Envelope)", value=True)
     
     # Session state to store simulation results
     if 'sim_data' not in st.session_state:
