@@ -3,33 +3,9 @@ import numpy as np
 from compas_tna.diagrams import FormDiagram
 from compas_viewer import Viewer
 from compas.colors import Color
+from vault_shared import crossvault_middle_hc, CONFIG
 
-# Re-implement the envelope logic to render it as context
-def crossvault_middle_hc(x, y, x_span, y_span, hc, tol=1e-6):
-    x0, x1 = x_span
-    y0, y1 = y_span
-    rx = (x1 - x0) / 2
-    ry = (y1 - y0) / 2
-    z = np.zeros(len(x))
-    for i in range(len(x)):
-        xi, yi = x[i], y[i]
-        xi = max(x0, min(x1, xi))
-        yi = max(y0, min(y1, yi))
-        xd = x0 + (x1 - x0) / (y1 - y0) * (yi - y0)
-        yd = y0 + (y1 - y0) / (x1 - x0) * (xi - x0)
-        hxd = math.sqrt(abs(rx**2 - (xd - x0 - rx)**2))
-        hyd = math.sqrt(abs(ry**2 - (yd - y0 - ry)**2))
-        if yi <= y0 + (y1 - y0) / (x1 - x0) * (xi - x0) + tol and yi >= y1 - (y1 - y0) / (x1 - x0) * (xi - x0) - tol:  # Q1
-            z[i] = hc * (hxd + math.sqrt(abs(ry**2 - (yi - y0 - ry)**2))) / (rx + ry)
-        elif yi >= y0 + (y1 - y0) / (x1 - x0) * (xi - x0) - tol and yi >= y1 - (y1 - y0) / (x1 - x0) * (xi - x0) - tol:  # Q3
-            z[i] = hc * (hyd + math.sqrt(abs(rx**2 - (xi - x0 - rx)**2))) / (rx + ry)
-        elif yi >= y0 + (y1 - y0) / (x1 - x0) * (xi - x0) - tol and yi <= y1 - (y1 - y0) / (x1 - x0) * (xi - x0) + tol:  # Q2
-            z[i] = hc * (hxd + math.sqrt(abs(ry**2 - (yi - y0 - ry)**2))) / (rx + ry)
-        elif yi <= y0 + (y1 - y0) / (x1 - x0) * (xi - x0) + tol and yi <= y1 - (y1 - y0) / (x1 - x0) * (xi - x0) + tol:  # Q4
-            z[i] = hc * (hyd + math.sqrt(abs(rx**2 - (xi - x0 - rx)**2))) / (rx + ry)
-    return z
-
-def create_envelope_meshes(x_span, y_span, hc, thickness, n=40):
+def create_envelope_meshes(x_span, y_span, hc, thickness, n=50):
     from compas_tna.diagrams.diagram_rectangular import create_cross_mesh
     mesh = create_cross_mesh(x_span=x_span, y_span=y_span, n=n)
     intrados = mesh.copy()
@@ -53,12 +29,21 @@ except Exception as e:
     exit(1)
 
 # ----------------------------------------
-# 2. Create Envelope for Context
+# 2. Get Geometry Parameters from Shared CONFIG
 # ----------------------------------------
-xy_span = [[0.0, 10.0], [0.0, 16.19]]
-hc = 2.0
-thickness = 0.3
-intrados, extrados = create_envelope_meshes(xy_span[0], xy_span[1], hc, thickness)
+# Derive spans from vertex attributes to ensure alignment with loaded data
+vertices = list(form_min.vertices())
+xs = [form_min.vertex_attribute(v, 'x') for v in vertices]
+ys = [form_min.vertex_attribute(v, 'y') for v in vertices]
+x_span = [min(xs), max(xs)]
+y_span = [min(ys), max(ys)]
+
+hc = CONFIG['max_rise']
+thickness = CONFIG['thickness']
+
+print(f"Rendering for Span: {x_span}, {y_span}, HC: {hc}, Thk: {thickness}")
+
+intrados, extrados = create_envelope_meshes(x_span, y_span, hc, thickness)
 
 # ----------------------------------------
 # 3. Render with compas_viewer
@@ -70,8 +55,8 @@ viewer.scene.add(intrados, name="Intrados", opacity=0.3, show_edges=False, facec
 viewer.scene.add(extrados, name="Extrados", opacity=0.3, show_edges=False, facecolor=Color.white())
 
 # Add Thrust Networks as wireframes
-viewer.scene.add(form_min, name="Thrust Network (Min)", show_faces=False, show_edges=True, edgecolor=Color.red(), linewidth=2)
-viewer.scene.add(form_max, name="Thrust Network (Max)", show_faces=False, show_edges=True, edgecolor=Color.blue(), linewidth=2)
+viewer.scene.add(form_min, name="Thrust Network (Min)", show_faces=False, show_edges=True, edgecolor=Color.red(), linewidth=3)
+viewer.scene.add(form_max, name="Thrust Network (Max)", show_faces=False, show_edges=True, edgecolor=Color.blue(), linewidth=3)
 
 print("Opening COMPAS Viewer...")
 viewer.show()
