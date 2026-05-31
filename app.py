@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import numpy as np
 import os
+import math
 
 from code.vault_logic import get_alternating_catenaries, generate_vault_meshes
 from code.crossvault import run_tna_simulation
@@ -29,7 +30,7 @@ def mesh_to_plotly_dict(mesh, color='lightblue', opacity=0.8, name='Mesh'):
         color=color, opacity=opacity, name=name, showlegend=True
     )
 
-def mesh_to_plotly_with_distortion(mesh, distortions, name='Flat Strip'):
+def mesh_to_plotly_with_distortion(mesh, distortions, name='Flat Strip', cmin=0.0, cmax=0.01, showscale=False):
     vertices = np.array([mesh.vertex_coordinates(v) for v in mesh.vertices()])
     faces = [mesh.face_vertices(f) for f in mesh.faces()]
     
@@ -53,7 +54,12 @@ def mesh_to_plotly_with_distortion(mesh, distortions, name='Flat Strip'):
         type='mesh3d',
         x=vertices[:, 0], y=vertices[:, 1], z=vertices[:, 2],
         i=tri_i, j=tri_j, k=tri_k,
-        intensity=v_intensity, colorscale='Viridis',
+        intensity=v_intensity, 
+        colorscale='Viridis',
+        cmin=cmin,
+        cmax=cmax,
+        showscale=showscale,
+        colorbar=dict(title='Distortion', x=1.1) if showscale else None,
         opacity=0.9, name=name, showlegend=True
     )
 
@@ -163,9 +169,27 @@ def main():
 
             # Add Flat Patterns
             if show_flat:
+                # Calculate global max distortion for uniform scale
+                all_distortions = [d for sublist in distortions for d in sublist] if distortions else []
+                global_max_d = max(all_distortions) if all_distortions else 0.01
+                if global_max_d < 1e-6: global_max_d = 0.01
+                
+                # Use a rounded "reasonable" maximum for the colorbar
+                # E.g., if max is 0.0138, maybe 0.015 or 0.02
+                colorbar_max = math.ceil(global_max_d * 100) / 100.0
+                if colorbar_max == 0: colorbar_max = 0.01
+
                 for i, (m, d) in enumerate(zip(meshes_flat, distortions)):
                     if m:
-                        fig.add_trace(go.Mesh3d(**mesh_to_plotly_with_distortion(m, d, name=f"Flat {i}")))
+                        # Only show scale for the first valid mesh
+                        show_colorbar = (i == 0)
+                        fig.add_trace(go.Mesh3d(**mesh_to_plotly_with_distortion(
+                            m, d, 
+                            name=f"Flat {i}", 
+                            cmin=0.0, 
+                            cmax=colorbar_max, 
+                            showscale=show_colorbar
+                        )))
 
             # Add Envelope Surfaces
             if show_intrados:
