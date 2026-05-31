@@ -81,6 +81,8 @@ def main():
     show_flat = st.sidebar.checkbox("Show Flat Patterns", value=True)
     show_cats = st.sidebar.checkbox("Show Catenary Lines", value=True)
     show_pts = st.sidebar.checkbox("Show Vertex Points", value=False)
+    show_intrados = st.sidebar.checkbox("Show Intrados (Envelope)", value=False)
+    show_extrados = st.sidebar.checkbox("Show Extrados (Envelope)", value=False)
     
     # Session state to store simulation results
     if 'sim_data' not in st.session_state:
@@ -164,6 +166,20 @@ def main():
                 for i, (m, d) in enumerate(zip(meshes_flat, distortions)):
                     if m:
                         fig.add_trace(go.Mesh3d(**mesh_to_plotly_with_distortion(m, d, name=f"Flat {i}")))
+
+            # Add Envelope Surfaces
+            if show_intrados:
+                # Convert list-based data to COMPAS Mesh for plotly helper
+                from compas.datastructures import Mesh
+                i_data = st.session_state.sim_data['intrados']
+                i_mesh = Mesh.from_vertices_and_faces(i_data['vertices'], i_data['faces'])
+                fig.add_trace(go.Mesh3d(**mesh_to_plotly_dict(i_mesh, color='cyan', opacity=0.15, name='Intrados')))
+
+            if show_extrados:
+                from compas.datastructures import Mesh
+                e_data = st.session_state.sim_data['extrados']
+                e_mesh = Mesh.from_vertices_and_faces(e_data['vertices'], e_data['faces'])
+                fig.add_trace(go.Mesh3d(**mesh_to_plotly_dict(e_mesh, color='tan', opacity=0.15, name='Extrados')))
 
             fig.update_layout(
                 scene=dict(aspectmode='data', xaxis_title='X', yaxis_title='Y', zaxis_title='Z'),

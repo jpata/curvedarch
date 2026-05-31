@@ -44,6 +44,12 @@ def create_structural_plot(data, config, elevation=30, azimuth=-135, title="Isom
     ax.set_xlim(x_span)
     ax.set_ylim(y_span)
     ax.set_zlim([-0.5, hc + 1.0])
+
+    # Ensure equal scaling
+    dx = x_span[1] - x_span[0]
+    dy = y_span[1] - y_span[0]
+    dz = (hc + 1.0) - (-0.5)
+    ax.set_box_aspect((dx, dy, dz))
     
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
