@@ -51,6 +51,7 @@ This app allows you to:
 - Modify the **Corner Cut Radius** to trim convergence points.
 - Toggle visibility of 3D surfaces and 2D patterns.
 - Inspect **distortion metrics** via color-coded heatmaps on the flat patterns.
+- **Structural Validation:** View the calculated Thrust Networks (Min/Max) alongside the vault envelope (Intrados/Extrados) from Top, Front, Right, and Isometric perspectives.
 
 ## Summary of Data Flow
 1. **Mathematical Envelope** $\rightarrow$ `crossvault.py` $\rightarrow$ **COMPAS FormDiagrams** (`thrust_min.json`, `thrust_max.json`)

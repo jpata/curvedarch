@@ -14,7 +14,7 @@ def _normalize(v):
 def _dot(v1, v2):
     return v1[0]*v2[0] + v1[1]*v2[1]
 
-def extract_spokes(diagram, target_corner_coords=(0.0, 0.0)):
+def extract_spokes(diagram, target_corner_coords=(0.0, 0.0), center_coords=(5.0, 5.0)):
     target_corner = None
     for v in diagram.vertices():
         x, y = diagram.vertex_attributes(v, names=['x', 'y'])
@@ -30,7 +30,7 @@ def extract_spokes(diagram, target_corner_coords=(0.0, 0.0)):
         curr, prev = n, target_corner
         while True:
             v_curr = diagram.vertex_attributes(curr)
-            if abs(v_curr['x'] - 5.0) < 1e-6 or abs(v_curr['y'] - 5.0) < 1e-6:
+            if abs(v_curr['x'] - center_coords[0]) < 1e-6 or abs(v_curr['y'] - center_coords[1]) < 1e-6:
                 break
             next_neighbors = diagram.vertex_neighbors(curr)
             best_n, max_dot = None, -2.0
@@ -162,12 +162,14 @@ def develop_strip_to_plane(poly1_3d, poly2_3d, start_point_on_plane, initial_unr
     
     return Mesh.from_vertices_and_faces(flat_vertices, flat_faces), quad_distortions
 
-def get_alternating_catenaries(form_min_path, form_max_path, corner_cut_radius=0.5):
-    form_min = FormDiagram.from_json(form_min_path)
-    form_max = FormDiagram.from_json(form_max_path)
+def get_alternating_catenaries(form_min, form_max, corner_cut_radius=0.5, center_coords=(5.0, 5.0)):
+    if isinstance(form_min, str):
+        form_min = FormDiagram.from_json(form_min)
+    if isinstance(form_max, str):
+        form_max = FormDiagram.from_json(form_max)
     
-    spokes_min_ids = extract_spokes(form_min)
-    spokes_max_ids = extract_spokes(form_max)
+    spokes_min_ids = extract_spokes(form_min, center_coords=center_coords)
+    spokes_max_ids = extract_spokes(form_max, center_coords=center_coords)
     
     def get_spoke_angle(spoke, diagram):
         c_coords = diagram.vertex_attributes(spoke[0], names=['x', 'y'])
