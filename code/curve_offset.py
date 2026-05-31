@@ -14,7 +14,9 @@ from compas_tna.diagrams import FormDiagram
 
 # --- Configuration ---
 FLAT_Z_OFFSET = -15.0 
+CORNER_CUT_RADIUS = 0.5
 TNA_CATENARIES = []
+RAW_TNA_CATENARIES = []
 
 # --- Global variables for scene management ---
 viewer = None 
@@ -69,8 +71,38 @@ def extract_spokes(diagram, target_corner_coords=(0.0, 0.0)):
         spokes.append(spoke)
     return spokes
 
+def cut_polyline_at_radius(pts, center_pt, radius):
+    new_pts = []
+    cut_done = False
+    cx, cy = center_pt.x, center_pt.y
+    for i in range(len(pts) - 1):
+        p1, p2 = pts[i], pts[i+1]
+        if not cut_done:
+            d1 = math.hypot(p1.x - cx, p1.y - cy)
+            d2 = math.hypot(p2.x - cx, p2.y - cy)
+            if d1 <= radius and d2 >= radius:
+                dx, dy = p2.x - p1.x, p2.y - p1.y
+                qx, qy = p1.x - cx, p1.y - cy
+                A = dx**2 + dy**2
+                B = 2 * (qx*dx + qy*dy)
+                C = qx**2 + qy**2 - radius**2
+                if A > 1e-9:
+                    det = B**2 - 4*A*C
+                    if det >= 0:
+                        t1 = (-B + math.sqrt(det)) / (2*A)
+                        t2 = (-B - math.sqrt(det)) / (2*A)
+                        t = t1 if 0 <= t1 <= 1 else t2
+                        if 0 <= t <= 1:
+                            new_pts.append(Point(p1.x + t*dx, p1.y + t*dy, p1.z + t*(p2.z - p1.z)))
+                            new_pts.append(p2)
+                            cut_done = True
+                            continue
+        else:
+            new_pts.append(p2)
+    return new_pts if new_pts else pts
+
 def load_tna_catenaries():
-    global TNA_CATENARIES
+    global RAW_TNA_CATENARIES
     try:
         form_min = FormDiagram.from_json('thrust_min.json')
         form_max = FormDiagram.from_json('thrust_max.json')
@@ -86,22 +118,33 @@ def load_tna_catenaries():
         spokes_min_ids.sort(key=lambda s: get_spoke_angle(s, form_min))
         spokes_max_ids.sort(key=lambda s: get_spoke_angle(s, form_max))
         
-        TNA_CATENARIES = []
+        RAW_TNA_CATENARIES = []
         n_spokes = min(len(spokes_min_ids), len(spokes_max_ids))
         for i in range(n_spokes):
-            # Alternating Max/Min to create corrugation
             if i % 2 == 0:
                 ids, diagram = spokes_max_ids[i], form_max
             else:
                 ids, diagram = spokes_min_ids[i], form_min
             
             pts = [Point(*diagram.vertex_coordinates(v)) for v in ids]
-            TNA_CATENARIES.append(Polyline(pts))
+            RAW_TNA_CATENARIES.append(pts)
         
-        print(f"Loaded {len(TNA_CATENARIES)} TNA catenaries sorted by angle.")
-        regenerate_all_geometry()
+        print(f"Loaded {len(RAW_TNA_CATENARIES)} TNA catenaries sorted by angle.")
+        apply_catenary_cuts()
     except Exception as e:
         print(f"Error loading TNA data: {e}")
+
+def apply_catenary_cuts():
+    global TNA_CATENARIES, RAW_TNA_CATENARIES
+    TNA_CATENARIES = []
+    for pts in RAW_TNA_CATENARIES:
+        if CORNER_CUT_RADIUS > 1e-6 and len(pts) > 1:
+            cut_pts = cut_polyline_at_radius(pts, pts[0], CORNER_CUT_RADIUS)
+            TNA_CATENARIES.append(Polyline(cut_pts))
+        else:
+            TNA_CATENARIES.append(Polyline(pts))
+    
+    regenerate_all_geometry()
 
 # --- Unrolling Logic ---
 
@@ -199,6 +242,15 @@ def update_flat_z_offset_param(control_widget, *args):
         FLAT_Z_OFFSET = float(control_widget.value())
         QtCore.QTimer.singleShot(100, regenerate_all_geometry)
     except: pass
+
+def update_corner_cut_radius_param(control_widget, *args):
+    global CORNER_CUT_RADIUS, is_updating
+    if is_updating: return
+    try:
+        CORNER_CUT_RADIUS = float(control_widget.value())
+        QtCore.QTimer.singleShot(100, apply_catenary_cuts)
+    except: pass
+
 
 def regenerate_all_geometry():
     global viewer, generated_polylines_3d, scene_objects_3d_surfaces, scene_objects_flat_strips
@@ -307,7 +359,7 @@ def regenerate_all_geometry():
     finally: is_updating = False
 
 def setup_ui():
-    global viewer, FLAT_Z_OFFSET
+    global viewer, FLAT_Z_OFFSET, CORNER_CUT_RADIUS
     from compas_viewer.components import Component
     ui_component = Component()
     main_widget = QWidget()
@@ -325,6 +377,16 @@ def setup_ui():
     z_layout.addWidget(QLabel("Flat Z-Offset:"))
     z_layout.addWidget(z_spinbox)
     layout.addLayout(z_layout)
+    
+    cut_layout = QHBoxLayout()
+    cut_spinbox = QDoubleSpinBox()
+    cut_spinbox.setRange(0.0, 5.0)
+    cut_spinbox.setSingleStep(0.1)
+    cut_spinbox.setValue(CORNER_CUT_RADIUS)
+    cut_spinbox.valueChanged.connect(functools.partial(update_corner_cut_radius_param, cut_spinbox))
+    cut_layout.addWidget(QLabel("Corner Cut Radius:"))
+    cut_layout.addWidget(cut_spinbox)
+    layout.addLayout(cut_layout)
     
     btn = QPushButton("Load TNA Data")
     btn.clicked.connect(load_tna_catenaries)
