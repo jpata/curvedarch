@@ -7,8 +7,8 @@ import numpy as np
 
 CONFIG = {
     'xy_span': [[0.0, 10.0], [0.0, 10.0]], # Square span for fan vault as per paper
-    'thickness': 0.5,
-    'max_rise': 2.5,
+    'thickness': 0.2,
+    'max_rise': 1.5,
     'discretisation_level': 40,  # For envelope meshes (higher for smoother curves)
     'form_discretisation': 10,   # For FormDiagram (n_fans, n_hoops)
     'solver': 'IPOPT',           # Preferred solver
