@@ -68,7 +68,9 @@ def main():
     st.title("Corrugated Vault: Parametric Design & TNA Solver")
     
     st.sidebar.header("1. Vault Geometry")
-    v_type = st.sidebar.selectbox("Vault Type", ["fan", "cross"], index=0 if CONFIG['vault_type'] == 'fan' else 1)
+    # v_type = st.sidebar.selectbox("Vault Type", ["fan", "cross"], index=0 if CONFIG['vault_type'] == 'fan' else 1)
+    v_type = "fan"
+    st.sidebar.info("Vault Type: Fan (Cross vault is currently disabled)")
     span_x = st.sidebar.slider("Span X", 2.0, 20.0, 10.0, step=0.1)
     span_y = st.sidebar.slider("Span Y", 2.0, 20.0, 10.0, step=0.1)
     rise = st.sidebar.slider("Max Rise", 0.5, 5.0, 1.5)
