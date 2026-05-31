@@ -11,12 +11,88 @@ from compas.geometry import intersection_circle_circle_xy
 from compas.colors import Color
 from compas.datastructures import Mesh
 from compas_viewer import Viewer
+from compas_tna.diagrams import FormDiagram
 
 # --- Configuration ---
 NUM_CATENARY_POINTS = 41
 FLAT_Z_OFFSET = -15.0 # Initial FLAT_Z_OFFSET, will be controllable by UI
+USE_TNA = False
+TNA_CATENARIES = []
 
 # --- Global variables for UI interaction and scene management ---
+# ... (rest remains same)
+
+# --- TNA Extraction Helpers ---
+def _get_vector(v1, v2):
+    return (v2['x'] - v1['x'], v2['y'] - v1['y'])
+
+def _normalize(v):
+    L = math.sqrt(v[0]**2 + v[1]**2)
+    if L == 0: return (0, 0)
+    return (v[0]/L, v[1]/L)
+
+def _dot(v1, v2):
+    return v1[0]*v2[0] + v1[1]*v2[1]
+
+def extract_spokes(diagram, target_corner_coords=(0.0, 0.0)):
+    target_corner = None
+    for v in diagram.vertices():
+        x, y = diagram.vertex_attributes(v, names=['x', 'y'])
+        if abs(x - target_corner_coords[0]) < 1e-6 and abs(y - target_corner_coords[1]) < 1e-6:
+            target_corner = v
+            break
+    if target_corner is None: return []
+
+    spokes = []
+    neighbors = diagram.vertex_neighbors(target_corner)
+    for n in neighbors:
+        spoke = [target_corner, n]
+        curr, prev = n, target_corner
+        while True:
+            v_curr = diagram.vertex_attributes(curr)
+            if abs(v_curr['x'] - 5.0) < 1e-6 or abs(v_curr['y'] - 5.0) < 1e-6:
+                break
+            next_neighbors = diagram.vertex_neighbors(curr)
+            best_n, max_dot = None, -2.0
+            vec_prev = _normalize(_get_vector(diagram.vertex_attributes(prev), v_curr))
+            for nn in next_neighbors:
+                if nn == prev: continue
+                vec_next = _normalize(_get_vector(v_curr, diagram.vertex_attributes(nn)))
+                d = _dot(vec_prev, vec_next)
+                if d > max_dot:
+                    max_dot, best_n = d, nn
+            if best_n is None or max_dot < 0.5: break
+            prev, curr = curr, best_n
+            spoke.append(curr)
+        spokes.append(spoke)
+    return spokes
+
+def load_tna_catenaries():
+    global TNA_CATENARIES, USE_TNA
+    try:
+        form_min = FormDiagram.from_json('thrust_min.json')
+        form_max = FormDiagram.from_json('thrust_max.json')
+        
+        spokes_min_ids = extract_spokes(form_min)
+        spokes_max_ids = extract_spokes(form_max)
+        
+        TNA_CATENARIES = []
+        for i in range(len(spokes_max_ids)):
+            if i % 2 == 0:
+                ids, diagram = spokes_max_ids[i], form_max
+            else:
+                ids, diagram = spokes_min_ids[i], form_min
+            
+            pts = [Point(*diagram.vertex_coordinates(v)) for v in ids]
+            TNA_CATENARIES.append(Polyline(pts))
+        
+        USE_TNA = True
+        print(f"Loaded {len(TNA_CATENARIES)} TNA catenaries.")
+        regenerate_all_geometry()
+    except Exception as e:
+        print(f"Error loading TNA data: {e}")
+
+# --- Geometry Functions ...
 viewer = None # Will be initialized later
 initial_instructions_data_tuples = [
     (10.0, 4.0, 0.0, 0.0),   
@@ -256,46 +332,44 @@ def update_flat_z_offset_param(control_widget, *args):
 def regenerate_all_geometry():
     """Calculates new geometry and updates existing meshes or creates new ones."""
     global viewer, generated_polylines_3d, scene_objects_3d_surfaces, scene_objects_flat_strips
-    global instructions_data, FLAT_Z_OFFSET, is_updating
+    global instructions_data, FLAT_Z_OFFSET, is_updating, USE_TNA, TNA_CATENARIES
 
     if is_updating: return
     is_updating = True
     
-    print_prefix = "  [RegenGeom] " # Define print_prefix for commented out debug lines
-    # print(f"\n{print_prefix}{'='*50}\n{print_prefix}STARTING GEOMETRY REGENERATION\n{print_prefix}{'='*50}")
+    print_prefix = "  [RegenGeom] "
 
     try:
         if viewer is None or viewer.scene is None:
-            # print(f"{print_prefix}ERROR: Viewer or Viewer.scene is None!")
             is_updating = False
             return
 
         generated_polylines_3d.clear()
 
         # 1. Generate 3D Polylines
-        # print(f"{print_prefix}--- Generating 3D Polylines ---")
-        for idx, params in enumerate(instructions_data):
-            radius, height, y_offset, rotation_angle_deg_z = params
-            current_catenary_a = solve_for_catenary_a(radius, height)
-            if current_catenary_a is None:
-                generated_polylines_3d.append(None); continue
-            base_catenary = create_catenary_polyline(radius, current_catenary_a, num_points=NUM_CATENARY_POINTS)
-            if base_catenary is None:
-                generated_polylines_3d.append(None); continue
-            
-            transformed_catenary = base_catenary.copy()
-            if abs(y_offset) > 1e-6: 
-                transformed_catenary.transform(Translation.from_vector(Vector(0, y_offset, 0)))
-            if abs(rotation_angle_deg_z) > 1e-6: 
-                # Ensure rotation point is valid if polyline has points
-                rotation_origin = transformed_catenary.points[0] if transformed_catenary.points else Point(0,0,0)
-                transformed_catenary.transform(Rotation.from_axis_and_angle(Vector(0, 0, 1), math.radians(rotation_angle_deg_z), point=rotation_origin))
-            generated_polylines_3d.append(transformed_catenary)
+        if USE_TNA:
+            generated_polylines_3d = [c.copy() for c in TNA_CATENARIES]
+        else:
+            for idx, params in enumerate(instructions_data):
+                radius, height, y_offset, rotation_angle_deg_z = params
+                current_catenary_a = solve_for_catenary_a(radius, height)
+                if current_catenary_a is None:
+                    generated_polylines_3d.append(None); continue
+                base_catenary = create_catenary_polyline(radius, current_catenary_a, num_points=NUM_CATENARY_POINTS)
+                if base_catenary is None:
+                    generated_polylines_3d.append(None); continue
+                
+                transformed_catenary = base_catenary.copy()
+                if abs(y_offset) > 1e-6: 
+                    transformed_catenary.transform(Translation.from_vector(Vector(0, y_offset, 0)))
+                if abs(rotation_angle_deg_z) > 1e-6: 
+                    rotation_origin = transformed_catenary.points[0] if transformed_catenary.points else Point(0,0,0)
+                    transformed_catenary.transform(Rotation.from_axis_and_angle(Vector(0, 0, 1), math.radians(rotation_angle_deg_z), point=rotation_origin))
+                generated_polylines_3d.append(transformed_catenary)
 
         num_expected_strips = max(0, len(generated_polylines_3d) - 1)
         
         # --- 2. Update or Create 3D Surface Strips ---
-        # print(f"\n{print_prefix}--- Updating/Creating 3D Surfaces ({num_expected_strips} expected) ---")
         new_scene_objs_3d_surfaces_temp = [None] * num_expected_strips 
         for i in range(num_expected_strips):
             poly1_3d = generated_polylines_3d[i]
@@ -303,41 +377,33 @@ def regenerate_all_geometry():
 
             if not poly1_3d or not poly2_3d or \
                len(poly1_3d.points) != len(poly2_3d.points) or len(poly1_3d.points) < 2:
-                # print(f"{print_prefix}  SKIPPED 3D Surface {i}: Invalid polylines.")
                 continue
             
             try:
-                strip_vertices_3d = poly1_3d.points + poly2_3d.points # Combine points from both polylines
+                strip_vertices_3d = poly1_3d.points + poly2_3d.points
                 strip_faces_3d = []
-                offset_3d = len(poly1_3d.points) # Offset to index into poly2_3d points when combined
+                offset_3d = len(poly1_3d.points)
                 for j_seg in range(len(poly1_3d.points) - 1):
-                    # Create quad faces linking corresponding segments of the two polylines
                     strip_faces_3d.append([j_seg, j_seg + 1, offset_3d + j_seg + 1, offset_3d + j_seg])
                 
                 new_mesh_data_3d = Mesh.from_vertices_and_faces(strip_vertices_3d, strip_faces_3d)
 
                 if i < len(scene_objects_3d_surfaces) and scene_objects_3d_surfaces[i] is not None:
                     scene_obj = scene_objects_3d_surfaces[i]
-                    mesh_to_update = scene_obj.item # Get the existing Mesh object
-                    
-                    mesh_to_update.clear() # Clear its current geometry
-
-                    # Repopulate mesh_to_update with geometry from new_mesh_data_3d
-                    vkey_map = {} # To map vertex keys from new_mesh_data_3d to mesh_to_update
+                    mesh_to_update = scene_obj.item
+                    mesh_to_update.clear()
+                    vkey_map = {}
                     for old_vkey in new_mesh_data_3d.vertices():
                         x, y, z = new_mesh_data_3d.vertex_coordinates(old_vkey)
                         new_vkey = mesh_to_update.add_vertex(x=x, y=y, z=z)
                         vkey_map[old_vkey] = new_vkey
-                    
                     for old_fkey in new_mesh_data_3d.faces():
                         face_vkeys_in_new_data = new_mesh_data_3d.face_vertices(old_fkey)
-                        # Map old vertex keys to new vertex keys for the face
                         face_vkeys_in_mesh_to_update = [vkey_map[ovk] for ovk in face_vkeys_in_new_data]
                         mesh_to_update.add_face(face_vkeys_in_mesh_to_update)
-                    
-                    scene_obj.update(update_data=True) # Tell the scene object to re-render with updated item
+                    scene_obj.update(update_data=True)
                     new_scene_objs_3d_surfaces_temp[i] = scene_obj
-                    scene_objects_3d_surfaces[i] = None # Mark as processed
+                    scene_objects_3d_surfaces[i] = None
                 else:
                     scene_obj = viewer.scene.add(new_mesh_data_3d, name=f"3DSurface_{i}",
                                                  facecolor=Color(0.6, 0.7, 0.9, 0.7), show_edges=True,
@@ -345,15 +411,12 @@ def regenerate_all_geometry():
                     new_scene_objs_3d_surfaces_temp[i] = scene_obj
             except Exception as e:
                 print(f"{print_prefix}  ERROR creating/updating 3D surface {i}: {e}")
-                # import traceback; traceback.print_exc()
 
-
-        for old_scene_obj in scene_objects_3d_surfaces: # Remove any old objects not processed
+        for old_scene_obj in scene_objects_3d_surfaces:
             if old_scene_obj is not None: viewer.scene.remove(old_scene_obj)
         scene_objects_3d_surfaces[:] = new_scene_objs_3d_surfaces_temp
 
         # --- 3. Update or Create Flattened Strips with Distortion Coloring ---
-        # print(f"\n{print_prefix}--- Updating/Creating Flattened Strips ({num_expected_strips} expected) ---")
         new_scene_objs_flat_strips_temp = [None] * num_expected_strips
         for i in range(num_expected_strips):
             poly1_3d = generated_polylines_3d[i]
@@ -361,30 +424,22 @@ def regenerate_all_geometry():
 
             if not poly1_3d or not poly2_3d or \
                len(poly1_3d.points) != len(poly2_3d.points) or len(poly1_3d.points) < 2:
-                # print(f"{print_prefix}  SKIPPED Flat Strip {i}: Invalid polylines.")
                 continue
             
             try:
-                # Determine the starting point for the flattened strip.
-                # It will be placed directly underneath the start of the 3D strip (poly1_3d).
                 if poly1_3d and poly1_3d.points:
                     start_x_3d = poly1_3d.points[0].x
                     start_y_3d = poly1_3d.points[0].y
                     flat_start_point = Point(start_x_3d, start_y_3d, FLAT_Z_OFFSET)
                 else:
-                    # Fallback if poly1_3d is invalid or empty, place with a simple offset based on index
-                    # This case should ideally not be reached if poly1_3d was valid for 3D strip generation.
-                    print(f"{print_prefix} Warning: poly1_3d invalid or empty for flat strip {i}. Using default placement.")
-                    flat_start_point = Point(i * 15.0, 0, FLAT_Z_OFFSET) # Default fallback placement
+                    flat_start_point = Point(i * 15.0, 0, FLAT_Z_OFFSET)
 
                 initial_unroll_direction = Vector(0,0,0)
                 if len(poly1_3d.points) >= 2:
                     p0, p1 = poly1_3d.points[0], poly1_3d.points[1]
-                    # Use the vector from the first segment of poly1_3d for initial unroll direction.
-                    # develop_strip_to_plane will project this to XY.
                     initial_unroll_direction = Vector.from_start_end(p0,p1) 
                 if initial_unroll_direction.length < 1e-6: 
-                    initial_unroll_direction = Vector(1,0,0) # Default to X-axis if vector is zero length
+                    initial_unroll_direction = Vector(1,0,0)
                 
                 new_flattened_mesh_data, quad_distortions = develop_strip_to_plane(poly1_3d, poly2_3d, flat_start_point, initial_unroll_direction)
                 
@@ -396,78 +451,50 @@ def regenerate_all_geometry():
                         min_d = min(quad_distortions) if quad_distortions else 0
                         max_d = max(quad_distortions) if quad_distortions else 0
                         delta_d = max_d - min_d
-                        
                         for f_idx, fkey in enumerate(new_flattened_mesh_data.faces()):
                             if f_idx < len(quad_distortions):
                                 distortion = quad_distortions[f_idx]
-                                norm_d = 0.0
-                                if delta_d > 1e-9: # Avoid division by zero if all distortions are the same
-                                    norm_d = (distortion - min_d) / delta_d
                                 norm_d = distortion * 10
-                                norm_d = max(0.0, min(1.0, norm_d)) # Clamp to [0, 1]
-
-                                # Color gradient: Green (0.0) -> Yellow (0.5) -> Red (1.0)
-                                r_col, g_col, b_col = 0.0, 0.0, 0.0
-                                if norm_d <= 0.5:
-                                    r_col = 2 * norm_d; g_col = 1.0
-                                else:
-                                    r_col = 1.0; g_col = 2 * (1.0 - norm_d)
-                                b_col = 0.0 
-                                face_colors[fkey] = Color(r_col, g_col, b_col, 0.8) 
+                                norm_d = max(0.0, min(1.0, norm_d))
+                                r_col, g_col = (2 * norm_d, 1.0) if norm_d <= 0.5 else (1.0, 2 * (1.0 - norm_d))
+                                face_colors[fkey] = Color(r_col, g_col, 0.0, 0.8) 
                             else: 
-                                face_colors[fkey] = default_face_color # Should not happen
+                                face_colors[fkey] = default_face_color
                     else: 
                         for fkey in new_flattened_mesh_data.faces():
                             face_colors[fkey] = default_face_color
 
                     if i < len(scene_objects_flat_strips) and scene_objects_flat_strips[i] is not None:
                         scene_obj = scene_objects_flat_strips[i]
-                        mesh_to_update = scene_obj.item # Get the existing Mesh object
-                        
-                        mesh_to_update.clear() # Clear its current geometry
-
-                        # Repopulate mesh_to_update with geometry from new_flattened_mesh_data
+                        mesh_to_update = scene_obj.item
+                        mesh_to_update.clear()
                         vkey_map_flat = {}
                         for old_vkey in new_flattened_mesh_data.vertices():
                             x,y,z = new_flattened_mesh_data.vertex_coordinates(old_vkey)
                             new_vkey = mesh_to_update.add_vertex(x=x,y=y,z=z)
                             vkey_map_flat[old_vkey] = new_vkey
-                        
                         for old_fkey in new_flattened_mesh_data.faces():
                             face_vkeys_in_new_data = new_flattened_mesh_data.face_vertices(old_fkey)
                             face_vkeys_in_mesh_to_update = [vkey_map_flat[ovk] for ovk in face_vkeys_in_new_data]
                             mesh_to_update.add_face(face_vkeys_in_mesh_to_update)
-
                         scene_obj.facecolor = face_colors 
                         scene_obj.update(update_data=True)
                         new_scene_objs_flat_strips_temp[i] = scene_obj
                         scene_objects_flat_strips[i] = None
                     else:
                         scene_obj = viewer.scene.add(new_flattened_mesh_data, name=f"FlatStrip_{i}",
-                                                     facecolor=face_colors, 
-                                                     show_edges=True, 
+                                                     facecolor=face_colors, show_edges=True, 
                                                      linecolor=Color(0.2, 0.2, 0.2, 0.9), linewidth=1.0)
                         new_scene_objs_flat_strips_temp[i] = scene_obj
-                else:
-                    # print(f"{print_prefix}  ERROR: develop_strip_to_plane returned None for flat strip {i}")
-                    pass 
             except Exception as e:
                 print(f"{print_prefix}  ERROR creating/updating flat strip {i}: {e}")
-                # import traceback; traceback.print_exc()
 
-
-        for old_scene_obj in scene_objects_flat_strips: # Remove any old objects not processed
+        for old_scene_obj in scene_objects_flat_strips:
             if old_scene_obj is not None: viewer.scene.remove(old_scene_obj)
         scene_objects_flat_strips[:] = new_scene_objs_flat_strips_temp
-        
-        # print(f"\n{print_prefix}--- Forcing viewer renderer update ---")
         viewer.renderer.update() 
-        
-        # print(f"{print_prefix}GEOMETRY REGENERATION COMPLETE\n{print_prefix}{'='*50}")
     except Exception as e:
         print(f"CRITICAL ERROR in regenerate_all_geometry: {e}")
-        import traceback
-        traceback.print_exc()
     finally:
         is_updating = False
 
@@ -475,11 +502,8 @@ def setup_ui():
     """Sets up the Qt UI panel for adjusting parameters."""
     global viewer, instructions_data, FLAT_Z_OFFSET
 
-    print("\n=== SETTING UP UI ===")
-
     from compas_viewer.components import Component
     ui_component = Component()
-    
     main_widget = QWidget()
     main_layout = QVBoxLayout(main_widget)
     main_layout.setAlignment(QtCore.Qt.AlignTop)
@@ -498,10 +522,13 @@ def setup_ui():
     flat_z_layout.addWidget(flat_z_spinbox)
     global_layout.addLayout(flat_z_layout)
     
+    tna_button = QPushButton("Load TNA Corrugation")
+    tna_button.clicked.connect(load_tna_catenaries)
+    global_layout.addWidget(tna_button)
+
     regenerate_button = QPushButton("Regenerate Geometry")
     regenerate_button.clicked.connect(regenerate_all_geometry) 
     global_layout.addWidget(regenerate_button)
-    
     main_layout.addWidget(global_group)
 
     param_names = ["Radius", "Height", "Y-Offset", "Z-Rotation (deg)"]
@@ -511,7 +538,6 @@ def setup_ui():
     for idx, catenary_params in enumerate(instructions_data):
         group_box = QGroupBox(f"Catenary {idx + 1}")
         group_layout = QVBoxLayout(group_box)
-        
         for param_idx, param_name in enumerate(param_names):
             param_layout = QHBoxLayout()
             label = QLabel(f"{param_name}:")
@@ -519,21 +545,16 @@ def setup_ui():
             spinbox.setRange(param_ranges[param_idx][0], param_ranges[param_idx][1])
             spinbox.setSingleStep(param_steps[param_idx])
             spinbox.setValue(catenary_params[param_idx])
-            spinbox.valueChanged.connect(
-                functools.partial(update_catenary_param, idx, param_idx, spinbox)
-            )
+            spinbox.valueChanged.connect(functools.partial(update_catenary_param, idx, param_idx, spinbox))
             param_layout.addWidget(label)
             param_layout.addWidget(spinbox)
             group_layout.addLayout(param_layout)
-        
         main_layout.addWidget(group_box)
 
     spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
     main_layout.addSpacerItem(spacer)
-    
     ui_component.widget = main_widget
     viewer.ui.sidedock.add(ui_component)
-    print("UI Setup Complete.")
 
 
 # --- Main script execution ---
