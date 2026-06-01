@@ -26,6 +26,17 @@ TEST_CASES = [
         "thick": 0.10,
         "discr": 12,
         "corner_cut_ratio": 0.7
+    },
+    {
+        "name": "asymmetric_discr_fan",
+        "span_x": 3.0,
+        "span_y": 1.8,
+        "rise": 0.4,
+        "thick": 0.10,
+        "discr": 10,
+        "discr_x": 12,
+        "discr_y": 6,
+        "corner_cut_ratio": 0.7
     }
 ]
 
@@ -193,10 +204,13 @@ def run_headless_workflow():
             'max_rise': case['rise'],
             'discretisation_level': 40,
             'form_discretisation': case['discr'],
+            'form_discretisation_x': case.get('discr_x', case['discr']),
+            'form_discretisation_y': case.get('discr_y', case['discr']),
             'solver': 'IPOPT',
             'support_type': 'corners',
             'vault_type': 'fan'
         }
+
         
         try:
             # 1. TNA Analysis

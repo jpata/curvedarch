@@ -77,29 +77,23 @@ def main():
     thick = st.sidebar.slider("Thickness", 0.01, 1.0, 0.1)
     
     st.sidebar.header("2. TNA Parameters")
-    discr = st.sidebar.number_input("Form Discretisation", 5, 40, 12)
+    if v_type == "fan":
+        discr_x = st.sidebar.slider("Ribs X", 2, 30, 8)
+        discr_y = st.sidebar.slider("Ribs Y", 2, 30, 6)
+        discr = st.sidebar.number_input("Hoop Discretisation", 5, 40, 10)
+    else:
+        discr = st.sidebar.number_input("Form Discretisation", 5, 40, 12)
+        discr_x, discr_y = discr, discr
+        
     solver = st.sidebar.selectbox("Solver", ["IPOPT", "SLSQP"], index=0)
     
     st.sidebar.header("3. Unrolling Parameters")
-    flat_z = st.sidebar.slider("Flat Z-Offset", -30.0, 10.0, -5.0)
+    flat_z = -1
     
-    # Pre-calculate safe cut radius if analysis has been run
-    max_safe_radius = 3.0
-    if st.session_state.get('sim_data'):
-        # Get catenaries without any cut first to see the full range
-        full_cats = get_alternating_catenaries(
-            st.session_state.sim_data['form_min'], 
-            st.session_state.sim_data['form_max'], 
-            corner_cut_radius=0.0,
-            center_coords=st.session_state.get('center_coords', (5.0, 5.0))
-        )
-        max_safe_radius = compute_max_safe_cut_radius(full_cats)
-
     corner_cut = st.sidebar.slider(
         "Corner Cut Radius", 
         0.0, 
-        float(max_safe_radius), 
-        0.7 * float(max_safe_radius), 
+        0.2, 
         0.05
     )
     
@@ -130,6 +124,8 @@ def main():
             'max_rise': rise,
             'discretisation_level': 40,
             'form_discretisation': discr,
+            'form_discretisation_x': discr_x,
+            'form_discretisation_y': discr_y,
             'solver': solver,
             'support_type': 'corners',
             'vault_type': v_type
