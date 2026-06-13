@@ -1,0 +1,14 @@
+.git
+.venv
+__pycache__
+outputs
+.pytest_cache
+.DS_Store
+*.png
+*.pdf
+*.txt
+!requirements.txt
+!packages.txt
+!runtime.txt
+!instructions.md
+!README.md

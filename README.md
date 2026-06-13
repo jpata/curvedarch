@@ -1,3 +1,12 @@
+---
+title: Curvedarch
+emoji: 🏗️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # Corrugated Vault Design Pipeline
 
 This document maps out the workflow, scripts, and data formats exchanged to generate and flatten the final corrugated structural vault geometry.

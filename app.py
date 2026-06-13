@@ -9,7 +9,7 @@ from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, 
 from code.crossvault import run_tna_simulation
 from code.vault_shared import CONFIG
 from code.vault_plots import create_structural_plot
-from code.packing import pack_strips
+from code.packing import pack_strips, pack_strips_multi
 from code.export import export_plywood_layout_pdf
 
 def mesh_to_plotly_dict(mesh, color='lightblue', opacity=0.8, name='Mesh'):
@@ -112,6 +112,7 @@ def main():
     show_extrados = st.sidebar.checkbox("Show Extrados (Envelope)", value=True, help="Visualize the upper boundary surface of the vault.")
 
     st.sidebar.header("5. Plywood Layout")
+    packing_mode = st.sidebar.radio("Packing Mode", ["Single Custom Sheet", "Multiple Standard Sheets"], help="Single: finds the minimal sheet to fit everything. Multiple: uses fixed sheet size and multiple pages.")
     sheet_w = st.sidebar.number_input("Sheet Width (m)", 0.1, 10.0, 2.44, step=0.01, help="Width of the plywood sheet (standard: 2.44m)")
     sheet_h = st.sidebar.number_input("Sheet Height (m)", 0.1, 10.0, 1.22, step=0.01, help="Height of the plywood sheet (standard: 1.22m)")
     sheet_margin = st.sidebar.number_input("Packing Margin (m)", 0.0, 0.5, 0.02, step=0.01, help="Minimum distance between strips and sheet edges.")
@@ -322,100 +323,116 @@ def main():
         if not valid_flat_meshes:
             st.warning("No flat patterns available to pack. Adjust parameters or check generation errors.")
         else:
-            with st.spinner("Packing Strips..."):
-                packed_meshes, success, used_dims = pack_strips(
-                    valid_flat_meshes, 
-                    sheet_w, sheet_h, 
-                    margin=sheet_margin, 
-                    optimize_rotation=optimize_rot
-                )
+            if packing_mode == "Single Custom Sheet":
+                with st.spinner("Packing Strips (Single Sheet)..."):
+                    packed_meshes, success, used_dims = pack_strips(
+                        valid_flat_meshes, 
+                        sheet_w, 100.0, # Huge height for custom mode
+                        margin=sheet_margin, 
+                        optimize_rotation=optimize_rot
+                    )
                 
-            if not success:
-                st.error(f"Provided sheet height ({sheet_h:.2f}m) is too small. Minimum required: {used_dims[1]:.2f}m (plus buffer).")
-            else:
+                # Format for display and export
+                sheets_to_show = [{
+                    'meshes': packed_meshes,
+                    'w': used_dims[0] + 0.05,
+                    'h': used_dims[1] + 0.05,
+                    'success': True
+                }]
                 st.success(f"All {len(packed_meshes)} strips packed! Suggested sheet size: {used_dims[0] + 0.05:.2f}m x {used_dims[1] + 0.05:.2f}m")
             
-            fig_pack = go.Figure()
-            
-            # Define final sheet with a small buffer (e.g. 5cm)
-            buffer = 0.05
-            final_w = used_dims[0] + buffer
-            final_h = used_dims[1] + buffer
+            else:
+                with st.spinner("Packing Strips (Multiple Sheets)..."):
+                    packed_sheets = pack_strips_multi(
+                        valid_flat_meshes,
+                        sheet_w, sheet_h,
+                        margin=sheet_margin,
+                        optimize_rotation=optimize_rot
+                    )
+                
+                num_packed = sum(len(s['meshes']) for s in packed_sheets)
+                st.success(f"Packed {num_packed} / {len(valid_flat_meshes)} strips onto {len(packed_sheets)} sheets.")
+                
+                sheets_to_show = []
+                for i, s in enumerate(packed_sheets):
+                    sheets_to_show.append({
+                        'meshes': s['meshes'],
+                        'w': sheet_w,
+                        'h': sheet_h,
+                        'title': f"Sheet {i+1}",
+                        'success': True
+                    })
 
-            # Draw Plywood Sheet Boundary
-            fig_pack.add_shape(
-                type="rect",
-                x0=0, y0=0, x1=final_w, y1=final_h,
-                line=dict(color="RoyalBlue", width=3),
-                fillcolor="BurlyWood", opacity=0.1,
-                name="Plywood Sheet"
-            )
+            # Visualization
+            for i, sheet in enumerate(sheets_to_show):
+                if len(sheets_to_show) > 1:
+                    st.write(f"### {sheet.get('title', f'Sheet {i+1}')}")
+                
+                fig_pack = go.Figure()
+                final_w, final_h = sheet['w'], sheet['h']
 
-            # Draw Optional Reference for Provided Sheet (if different)
-            if abs(final_w - sheet_w) > 0.01 or abs(final_h - sheet_h) > 0.01:
                 fig_pack.add_shape(
                     type="rect",
-                    x0=0, y0=0, x1=sheet_w, y1=sheet_h,
-                    line=dict(color="gray", width=1, dash="dot"),
-                    fillcolor="rgba(0,0,0,0)", opacity=0.5,
-                    name="Available Sheet"
+                    x0=0, y0=0, x1=final_w, y1=final_h,
+                    line=dict(color="RoyalBlue", width=3),
+                    fillcolor="BurlyWood", opacity=0.1,
+                    name="Plywood Sheet"
                 )
-            
-            # Draw Packed Meshes (Batched edges for performance)
-            x_coords, y_coords = [], []
-            for m in packed_meshes:
-                for edge in m.edges():
-                    p1, p2 = m.edge_coordinates(edge)
-                    x_coords.extend([p1[0], p2[0], None])
-                    y_coords.extend([p1[1], p2[1], None])
-            
-            fig_pack.add_trace(go.Scatter(
-                x=x_coords, y=y_coords,
-                mode='lines',
-                line=dict(color='black', width=1),
-                showlegend=False,
-                name="Packed Strips",
-                hoverinfo='none'
-            ))
-            
-            # Set ranges to show both provided and required sheets
-            max_w_view = max(sheet_w, used_dims[0])
-            max_h_view = max(sheet_h, used_dims[1])
 
-            fig_pack.update_layout(
-                xaxis=dict(title="Width (m)", range=[-0.1, max_w_view + 0.1]),
-                yaxis=dict(title="Height (m)", range=[-0.1, max_h_view + 0.1], scaleanchor="x", scaleratio=1),
-                width=1000, 
-                height=700,
-                margin=dict(l=20, r=20, t=40, b=20),
-                template="plotly_white"
-            )
-            st.plotly_chart(fig_pack, use_container_width=True)
+                # Draw Packed Meshes
+                x_coords, y_coords = [], []
+                for m in sheet['meshes']:
+                    for edge in m.edges():
+                        p1, p2 = m.edge_coordinates(edge)
+                        x_coords.extend([p1[0], p2[0], None])
+                        y_coords.extend([p1[1], p2[1], None])
+                
+                fig_pack.add_trace(go.Scatter(
+                    x=x_coords, y=y_coords,
+                    mode='lines',
+                    line=dict(color='black', width=1),
+                    showlegend=False,
+                    name="Packed Strips",
+                    hoverinfo='none'
+                ))
+                
+                fig_pack.update_layout(
+                    xaxis=dict(title="Width (m)", range=[-0.1, final_w + 0.1]),
+                    yaxis=dict(title="Height (m)", range=[-0.1, final_h + 0.1], scaleanchor="x", scaleratio=1),
+                    width=1000, height=600,
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    template="plotly_white"
+                )
+                st.plotly_chart(fig_pack, use_container_width=True, key=f"pack_fig_{i}")
             
             st.subheader("Layout Metrics")
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Strips Placed", f"{len(packed_meshes)} / {len(valid_flat_meshes)}")
-            m2.metric("Final Sheet Size", f"{final_w:.2f} x {final_h:.2f} m")
+            m1, m2, m3 = st.columns(3)
+            total_packed = sum(len(s['meshes']) for s in sheets_to_show)
+            m1.metric("Strips Placed", f"{total_packed} / {len(valid_flat_meshes)}")
+            m2.metric("Total Sheets", len(sheets_to_show))
             
-            # Simple area utilization of FINAL area
-            final_area = final_w * final_h
-            if final_area > 0:
-                used_area = 0
-                from code.packing import get_mesh_2d_bbox
-                for m in packed_meshes:
+            # Utilization
+            total_used_area = 0
+            total_sheet_area = sum(s['w'] * s['h'] for s in sheets_to_show)
+            from code.packing import get_mesh_2d_bbox
+            for s in sheets_to_show:
+                for m in s['meshes']:
                     min_x, min_y, max_x, max_y = get_mesh_2d_bbox(m)
-                    used_area += (max_x - min_x) * (max_y - min_y)
-                utilization = (used_area / final_area) * 100
-                m3.metric("BBox Utilization", f"{utilization:.1f}%")
+                    total_used_area += (max_x - min_x) * (max_y - min_y)
             
-            m4.metric("Fits on Initial Sheet", "YES" if success else "NO")
+            if total_sheet_area > 0:
+                utilization = (total_used_area / total_sheet_area) * 100
+                m3.metric("Avg BBox Utilization", f"{utilization:.1f}%")
 
             st.write("---")
             st.subheader("Manufacturing Export")
             
-            pdf_buf = export_plywood_layout_pdf(packed_meshes, final_w, final_h)
+            # Prepare data for export
+            export_data = [{'meshes': s['meshes'], 'w': s['w'], 'h': s['h']} for s in sheets_to_show]
+            pdf_buf = export_plywood_layout_pdf(export_data)
+            
             st.download_button(
-                label="📥 Download Cut Patterns (PDF)",
+                label=f"📥 Download Cut Patterns ({len(sheets_to_show)} Page PDF)",
                 data=pdf_buf,
                 file_name=f"vault_cut_patterns_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
                 mime="application/pdf",

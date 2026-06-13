@@ -1,0 +1,411 @@
+Proceedings of the IASS 2024 Symposium
+Redefining the Art of Structural Design
+August 26-30, 2024, Zurich Switzerland
+Philippe Block, Giulia Boller, Catherine DeWolf,
+Jacqueline Pauli, Walter Kaufmann (eds.)
+
+Unfold Form
+A curved-crease unfoldable formwork for a corrugated fan-vaulted floor
+Lotte SCHEDER-BIESCHIN*, Mark HELLRICH, Tom VAN MELE, Philippe BLOCK
+* ETH Zurich, Institute of Technology in Architecture, Block Research Group
+Stefano-Franscini-Platz 1 HIB, 8093 Zurich, Switzerland
+scheder@arch.ethz.ch
+
+Abstract
+To address the urgent challenges faced by the construction industry of reducing carbon emissions while
+meeting the demand for new floor area, innovating floor systems offers high potential as slabs are
+structurally highly inefficient and mass dominant. Unreinforced vaulted floor systems offer a promising
+strategy through their geometric stiffness. However, the drawback commonly lies in the expensive and
+wasteful formworks for such non-standard geometry, furthermore often relying on digital fabrication,
+which is not available in emerging markets where there is the highest need. In response, this research
+introduces a low-tech, low-cost, material-efficient, lightweight, compactly transportable, rapidly
+deployable, self-supporting, and reusable formwork solution. Unfoldable curved-creased bending-active
+plates with textile hinges enable the in-situ construction of unreinforced corrugated fan-vaulted floor
+systems. The curved creases provide shape control, while the corrugations provide stiffening and
+translate into concrete rib articulations to enhance material efficiency. This paper focuses on validating
+the system through a demonstrator. The system, its co-design methods, and its fabrication and
+construction are presented. By employing structural geometry for both formwork and resulting shell
+floor, as opposed to wasteful moulds and inefficient slabs, the system could reduce the environmental
+impact of the construction industry.
+Keywords: curved-crease unfolding, bending-active plates, deployable formwork, corrugated shell, vaulted floor system, insitu construction, low-tech, structural geometry.
+
+1
+
+Introduction
+
+1.1 Motivation
+The construction industry faces the challenge of having to significantly reduce its tremendous carbon
+emissions while urgently providing nearly double the existing floor area by 2050 [1]. Innovation in floor
+systems has the most potential for impact considering that slabs constitute approximately half of the
+mass of multi-storey buildings [2] and are structurally highly inefficient. A rethinking based on the
+principles of the Gothic master builders teaches us to use strength through structural geometry. This
+effective principle is applied to vaulted floor systems through the introduction of a thin funicular
+unreinforced concrete shell with local stiffening articulations [3]. Mainly subject to low compressive
+stresses, these enable savings on reinforcement steel and concrete mass, additionally allowing lower
+strength, hence a lower cement ratio [3].
+However, the drawback of construction of such non-standard geometry commonly lies in expensive,
+wasteful, bulky, and single-use formworks. Additionally, most custom formwork strategies rely on hightech digital fabrication methods; however, the majority of the 2050-projected demand for floor area lies
+in economically less developed countries [1], where these tools are commonly unavailable.
+Consequently, formwork strategies with a universal approach using low-tech, low-cost materials,
+
+Copyright © 2024 by Lotte Scheder-Bieschin, Mark Hellrich, Tom Van Mele, Philippe Block
+Published by the International Association for Shell and Spatial Structures (IASS) with permission.
+
+Proceedings of the IASS Symposium 2024
+Redefining the Art of Structural Design
+
+machinery and equipment could be applied in a wide range of regions, increasing their potential impact
+drastically.
+The aim of this research is a low-tech, cost- and material-efficient, compact, and reusable formwork
+system that enables the in-situ construction of structurally efficient vaulted floors. Key to this innovation
+is that the formation of the formwork is based on a simple geometric principle. And equally to the shell,
+the formwork achieves its strength through geometry.
+1.2 Curved-crease unfolding
+The active bending of plates allows the efficient construction of lightweight, curved structures without
+using formwork or digital fabrication [4]. However, the shape of unconstrained bending-active plates is
+limited to the Elastica curve, and they undergo large deformations and risk stability failure under external
+loads [5]. Instead, with curved-crease folding (CCF), the plate’s curvature is controlled by the crease
+shape (Fig. 1a), offering high geometric control and an intriguing design space [6]. Moreover, the mutual
+restraint of the adjacent plates improves structural performance significantly (Fig. 1b) [5]. Consequently,
+curved-crease-folded bending-active plates can be taken beyond the realm of installations to
+architectural-scale structural applications [7], [8]. However, their plate thickness lies beyond foldability,
+which necessitates the assembly of separate plates with curved hinges.
+Since the plates must be joined regardless, the structure can be joined from stacked plates along curved
+creases into a flat-folded configuration, which is then unfolded. This concept was introduced with the
+terminology of Curved-Crease Unfolding (CCU) along with its geometric principles by SchederBieschin et al. [9]. In the classic CCF, a flat assembly is folded from a large element into a more compact
+spatial configuration. Whereas in CCU, flat-folded plates can be unfolded rapidly from a compact state
+with an accordion-like mechanism into a double-curved, corrugated structure with extended design
+possibilities. Hence, this material-efficient structure is highly suitable as a formwork system for a shell
+with corrugated ribs as stiffening articulations, as conceptually demonstrated in Scheder-Bieschin et al.
+[5].
+
+a
+
+b
+Fig. 1: Principle of (a) shape control and (b) stiffening of curved-crease unfolding shown based on a single
+bending-active plate (left) and curved-crease folded plates (right) [5]
+
+1.3 Vision of “Unfold Form”
+The vision of this research is to apply the principles of CCU bending-active plates as a reusable
+formwork for the in-situ construction of a compression-only, unreinforced-concrete, fan-vaulted floor.
+The core principles of the “Unfold Form” construction system are at a geometric, structural and design
+level: i) the geometric control of the creases with informed curvature allows the controlled shaping of a
+funicular shell geometry; ii) the resulting corrugations with their static height provide geometric stiffness
+for the formwork but also result in stiffening ribs in the concrete shell; and, iii) these geometric unfolding
+and structural schemes eventuate in the intriguing aesthetics of a fan-vaulted rib layout of the thin-shell
+floor inspired by the iconic King’s College Chapel in Cambridge.
+2
+
+Proceedings of the IASS Symposium 2024
+Redefining the Art of Structural Design
+
+The advantages of the construction system, as depicted in Figure 2, are a simple 2D prefabrication
+process based on low-tech machinery and low-cost materials. It offers flat-packed, compact transport to
+the construction site and the rapid, on-site deployment through the CCU unfolding mechanism into a
+lightweight, self-supporting, material-efficient formwork. This formwork is robust and walkable to cast
+in-situ a material-efficient, unreinforced concrete shell. Lastly, the reusability of the formwork enhances
+ecological and economic sustainability.
+
+Fig. 2: Vision of the “Unfold Form” formwork system (from left to right): simple 2D prefabrication, flat-packed
+transport, rapid in-situ deployment, and easy and safe concrete casting
+
+This research focuses on validating this vision through a half-scale demonstrator. The translation of the
+system’s core principles necessitates the integrative design of geometry, engineering, and fabrication.
+The paper first introduces the system design (Section 2), followed by a brief overview of the
+computational design workflow (Section 3), a description of the prefabrication, including the
+challenging design of the curved hinges, the construction and the result (Section 4), and concludes with
+an outlook on the potentials of “Unfold Form” (Section 5).
+
+2
+
+System
+
+The “Unfold Form” construction system consists of a flat-packed formwork that unfolds to form a fanvaulted concrete shell with corrugated ribs, which serves as the load-bearing structure of a vaulted floor
+system. The demonstrator is realised at half-scale of a housing unit and spans 3 metres by 1.8 metres.
+The proportions of this module are based on the golden ratio; however, these are flexible and could, for
+example, also be square in plan. The height of the floor buildup varies between 40 cm at its supports at
+its four corners and 18 cm at the centre crown. With over 70% of the floor depth below 25cm, including
+the flooring, overall storey heights would not increase, rendering the system applicable to the building
+sector.
+The formwork system (Fig. 3a) consists of the curved-crease unfoldable plates that support and shape
+the concrete (Fig. 3d) and a supporting frame substructure (Fig. 3b,c). The CCU system is composed of
+four parts (Fig. 3e), two identical and two mirrored ones, that unfold (Fig. 3d) to cover the four
+symmetric quadrants of the fan vault. Each part is assembled from fourteen planar plates of 8mm poplar
+plywood. Plywood is highly suitable for bending-active structures [10], furthermore, its orthotropy is
+oriented such that its lower stiffness aligns with the direction of active bending and its higher stiffness
+with the ruling directions.
+The CCU plates are connected and covered with an industrial woven polyester textile tailored from
+fourteen developable textile strips. The resulting curved textile hinges allow the simultaneous unfolding
+and active bending. As the hinge design in the proof-of-concept prototype [5], the textile is wrapped
+around the edges such that the adhesive bond is subject to tangential forces instead of debonding normal
+forces while the centre of rotation is located around the seam (Fig. 3h). A one-sided PVC coating of the
+textile ensures a clean concrete surface finish and robustness for reuse in multiple casting cycles, while
+the non-coated surface ensures better adhesion to the plywood plates.
+The four elements of the CCU system are vertically supported in situ at the four corners with simple
+props and thrust against the capitals of the columns. These capitals are connected with tension ties that
+restrain the horizontal thrust during the casting process and later of the resulting vaulted structure. In a
+3
+
+Proceedings of the IASS Symposium 2024
+Redefining the Art of Structural Design
+
+real-world construction case, these could be hidden in walls or replaced by buttresses. The four CCU
+parts are actuated when restrained within the capitals and the supporting frame substructure. The frame
+is made of 24mm plywood plates and connects to the CCU system with industrial velcro fasteners to
+ensure a rapid and reversible connection for multiple casting cycles. The frame’s zigzag-shaped plates
+along the crown lines (Fig. 3c) and the ledges along the perimeter help to precisely position, support,
+and stiffen the four parts, while the sidewalls (Fig. 3b) provide a mould for the wet concrete along the
+sides. The formwork system has no counter-mould for simplicity of fabrication.
+The corrugated vaulted shape of the formwork forms the intrados of the concrete shell, while the
+extrados is shaped manually into a continuous surface (Fig. 4a). Consequently, the resulting fan-vaulted
+shell has stiffening ribs with triangular cross-sections. These secure the structural height to provide
+geometric stiffness against asymmetric loads. The ribs vary the structural height of the concrete shell
+between 4 cm to 13.5 cm at the deepest rib at the centre. As the funicular geometry of the formwork and
+hence the concrete shell ensures primarily compressive stresses, the concrete shell is unreinforced,
+saving material and simplifying construction separation of parts for end-of-life recycling.
+The “Unfold Form” floor system is completed with a dry fill for load distribution, insulation and
+horizontal levelling (Fig. 4b). Its dry nature allows for fast processing time and circular reuse. The floor
+finishing layers are composed of a fibre board for additional insulation (Fig. 4c), a dry screed for
+additional load distribution (Fig. 4d), and a rubber floor finish (Fig. 4e).
+
+Fig. 3: System design of (a) the “Unfold Form” formwork: (b) side walls with side ledges, (c) crown plates,
+(d) unfolded CCU quarters, (e) folded CCU quarters, and (f) a closeup of the curved textile hinge design
+
+4
+
+Proceedings of the IASS Symposium 2024
+Redefining the Art of Structural Design
+
+Fig. 4: System design of the “Unfold Form” floor system with (a) fan-vaulted shell and floor build-up with
+(b) dry fill, (c) fibre boards, (d) dry-screed, and (e) rubber floor finish
+
+3
+
+Geometric and structural co-design
+
+The Unfold Form construction system emerges from an iterative and integrative computational codesign process that encompasses geometric, structural, and fabrication constraints for both the highly
+interdependent formwork and shell structure (Fig. 5). The design optimisation was achieved through a
+parametric sensitivity analysis evaluated against these constraints [11].
+The geometric design commences with the form finding of the funicular target geometry based on a fanvault pattern (Fig. 5a), utilising the Thrust Network Optimisation package from COMPAS [12]. The
+funicular target is translated along the curved-crease unfolded principle with the reflection method [9]
+into the corrugated bending-active plate geometry of the formwork (Fig. 5b) such that the thrust curves
+are contained within the kern of the shell structure [11]. The shell geometry is defined by the CCU
+formwork at its intrados and by a minimum thickness of 4 cm to its continuous extrados.
+The structural design verifies this geometric design of the funicular shell with the Finite Element
+software SOFiSTiK [13]. The serviceability and ultimate limit state (SLS and ULS) are analysed along
+with a push-over analysis to determine the optimal iteration of the parametric design space. The
+formwork as well is analysed for SLS and ULS plus a buckling analysis is performed to capture potential
+snap-through behaviour. It is modelled with spring connections along the curved-crease hinges and
+includes the internal stresses from the bending-active actuation.
+The fabrication design reconciles reciprocal constraints from both the formwork and shell and integrates
+the detailing from the prototyping process. Finally, the 2D geometry of the formwork plates and textile
+strips is computed through the simulation of the close-folding of the CCU mechanism and exported
+along with all other formwork components as fabrication data.
+
+5
+
+Proceedings of the IASS Symposium 2024
+Redefining the Art of Structural Design
+
+Fig. 5: Simplified integrative co-design workflow of the “Unfold Form” construction system
+
+4
+
+Fabrication and construction
+
+The fabrication data from the high-tech design process are transferred to the low-tech fabrication
+process. The fabrication process is highly informed by an extensive prototyping and material
+development phase with the primary challenge of flexible yet structural and sealed hinges for rapid
+deployment, as well as a generally robust formwork solution for reusability and in-situ application.
+4.1 Prefabrication
+The prefabrication of the CCU formwork quarters commences with the cutting of the textile strips and
+plywood plates into their simple 2D cutting patterns. This process can be adapted to the context, from
+high-tech tools such as CNC machines (Fig. 6a) to low-tech tools such as a combination of paper stencils
+and a jigsaw. The textile strips are sewn together using a regular sewing machine with an industrial
+thread (Fig. 6b). The timber plates are adhered to the tailored textile using standard double-sided tape
+(Fig. 6c). The textile perimeter flaps are wrapped around the plate’s edges and fixed with staples,
+guaranteeing a low-cost and effective fastener.
+
+Fig. 6: Prefabrication of the CCU formwork: (a) cutting of the plywood plates,
+(b) sewing of the textile strips, and (c) assembly of the CCU system
+
+This prefabrication results in the four compactly flat-packed, lightweight formwork elements weighing
+only 6 kg each. It is based on a time-effective, simple, low-tech, yet precise production. Likewise, the
+elements of the formwork frame require simple 2D processing of plywood only. The total kit of parts of
+the formwork (Fig. 7a) is so flat-packed and compact that it can be transported even on a Vespa (Fig.
+9b).
+4.2 On-site assembly
+On site, the frame is rapidly assembled in a plug-and-play manner due to hinges and reversible bolted
+connections (Fig. 7b). The CCU formwork quarters are instantly deployed and reversibly connected to
+the side ledges and zigzag-shaped crown plates through the industrial velcro strip (Fig. 7c). The low6
+
+Proceedings of the IASS Symposium 2024
+Redefining the Art of Structural Design
+
+tech system results in a robust and walkable formwork onto which the shell can be directly cast without
+further steps (Fig. 8a). Its complex structural geometry achieves high geometric precision as evidenced
+by scanning measurements.
+Due to safety regulations of the research environment at ETH Zurich, the in-situ construction scenario
+could only be simulated at a height of 70 cm. After casting, the floor was lifted onto the intended 2metre-high columns.
+
+Fig. 7: On-site assembly of the formwork: (a) kit of parts, (b) formwork frame,
+and (c) deployment of the CCU quarters
+
+4.3 Concrete casting
+The single-sided mould with a vaulted extrados requires a concrete mix design with a non-fluid
+consistency such that it can be shaped by masonry trowels yet with sufficient workability for compacting
+and surface finish quality. This mix design was calibrated in experiments prior to concrete casting by
+tweaking the sensitive water-cement ratio. The use of renewable kenaf fibres improves consistency,
+shrinkage cracking, and flexural strength [14]. Even though the single-sided mould typology demands
+manual shaping of the extrados, the key advantages, compared to a system with counter-mould, are to
+circumvent the tremendous hydrostatic pressure and additional weight against the resulting uplift.
+The concrete casting was carried out in two batches: a first layer to carefully compact the ribs with
+vibrating needles (Fig. 8b), and a second layer for the continuous shell. The extrados was compacted
+and formed with vibrating trowels following custom-made timber guides to control the shell’s thickness
+(Fig. 8c). The casting process took approximately two hours, a time frame that could be significantly
+optimised in the future.
+
+Fig. 8: Concrete casting: (a) underside of formwork, (b) filling of the triangular-shaped ribs,
+and (c) manual shaping of the shell’s extrados with masonry trowels
+
+4.4 Decentring and reuse
+After three days of curing, the concrete shell can be decentred already, a time-efficient optimisation over
+conventional reinforced concrete slabs. This is due to the low compressive stresses of the funicular
+geometry and the absence of bond requirements with reinforcement. The “Unfold Form” system is
+designed such that decentring is highly intuitive and rapid and with reversible connections only to
+guarantee many cycles of reuse. After removal of the formwork frame by releasing the velcro
+connections, the CCU quarters can be easily removed from the concrete surface (Fig. 9a) thanks to their
+flexibility and PVC coating, making release agents obsolete. The elements can be rapidly refolded into
+their compact state and reused after a quick cleaning. The floor system was cast three times already
+without any noticeable wear, demonstrating the reusability of the formwork system. Many more cycles
+of reuse are anticipated.
+
+7
+
+Proceedings of the IASS Symposium 2024
+Redefining the Art of Structural Design
+
+Fig. 9: (a) Decentring of the CCU quarters, and (b) transport of the formwork on a Vespa for reuse
+
+4.5 Final floor system of fan-vaulted shell
+After further concrete curing, the floor system is completed with the build-up described in Section 2 and
+shown in Figure 4. This process followed conventional state-of-the-art practices for flooring systems.
+The floor system drew inspiration from Gothic structural principles. Its ceiling, the exposed intrados of
+the shell, shows a highly intriguing architectural expression with its crisp corrugations, particularly when
+subject to light (Fig. 10). Its fan-vaulted ribs accentuate the vaulted sense of space while providing the
+structural height for stiffening against asymmetric loads. This expressive, elegant form is not despite but
+because of the constraints of structural efficiency and fabrication economy.
+
+Fig. 10: Final “Unfold Form” floor system
+
+5
+
+Conclusion and outlook
+
+This research presents a construction system for an innovative floor to address the urgent challenges
+faced by the construction industry of reducing carbon emissions while meeting the large demand for
+new floor area. The system's core innovation lies in the use of curved-crease unfolding (CCU) of
+bending-active plates as a reusable formwork for the in-situ construction of unreinforced fan-vaulted
+concrete shells. The curved creases provide shape control beyond the bending-active Elastica into the
+funicular shape while the corrugations provide stiffening and translate into concrete rib articulations that
+enhance material efficiency.
+
+8
+
+Proceedings of the IASS Symposium 2024
+Redefining the Art of Structural Design
+
+The successful realisation of a building-scale demonstrator showcases the viability of the “Unfold Form”
+system. Key advantages of the novel formwork system include its simple, low-cost, low-tech, and
+gender-equal prefabrication – gender-equal as many prefabrication tasks were executed by a pregnant
+woman, ultimately fostering a more inclusive construction industry; its extremely light weight of 24 kg
+and flat-packed state to be transported even on a Vespa; its instant deployability on site with high
+geometric precision; its material-efficient, self-supporting, robust, walkable, and geometrically-complex
+structure; and its reusability after only a few days. The resulting unreinforced shell gains its stiffness
+from its funicular and ribbed geometry drawing inspiration from gothic masterpieces. Compared to a
+conventional slab, it significantly reduces concrete mass and eliminates the need for reinforcement,
+except the minimal tension ties, which saves cost, embodied carbon, and rebar placement, as well as
+facilitates the separation of parts at its end of life.
+The architectural outlook of the “Unfold Form” floor system is its application in multiple bays, for
+example, in housing units, arcades, or collonaded warehouses as done by Nervi. Since the CCU system
+is geometrically versatile, other proportions of spans are feasible. Furthermore, its design freedom also
+allows other typologies, such as corrugated funnel columns or barrel vaults [5], [9]. The scalability of
+the formwork and shell system is to be investigated through structural simulations [11] and prototyping.
+Furthermore, studies could focus on the beneficial effect of the corrugated vaulted ribs on room
+acoustics.
+The outlook for the materialisation of the formwork ranges from using more natural textiles, such as
+hemp, to GFRP or steel, depending on the sustainability goal, anticipated reuse cycles, technological
+context, and scale. For the fan-vaulted shell, conventional concrete could be replaced with concrete with
+a non-cement binder or other liquid-to-solid materials with low strength and embodied carbon to enhance
+sustainability further.
+The outlook on the application of the “Unfold Form” system ranges from high-tech contexts, benefitting
+from its aesthetics and efficiency, to predominantly less economically developed countries, benefiting
+from its independence from high-tech means. This is because the expressive shape, the efficient
+structural form, and the simple fabrication of the system are solely based on geometric principles. These
+geometric principles are designed with a computational co-design workflow and translated into low-tech
+construction. By employing structural geometry for both formwork and shell, as opposed to wasteful
+moulds and structurally inefficient slabs, the system aims to contribute to mitigating the environmental
+impact of the construction industry.
+
+Acknowledgements
+The authors would like to thank Andrea Menardo for the structural detailing of the supporting structure,
+Ricardo Maia Avelino for support with compas_tno, Sam Bouten for SOFiSTiK discussions, and Nijat
+Mahamaliyev for geometric scanning. Moreover, the authors would like to thank Jonathan Leu for his
+incredible support with concrete knowledge and casting, Luca Petrus and Michael Lyrenmann for their
+creative support in the ETH Zurich RFL, Henry Welch for his assistance at Raplab, the colleagues
+Alessandro Dell’Endice, Vasilis Aloutsanidis, and Petras Vestartas to pitch in with the casting, Justus
+Scheder-Bieschin for everything, and Heidi. Lastly, the authors would like to acknowledge the material
+sponsors: Noraplan, Holcim, Cemwood, Debrunner Bewehrungen, Steico, Fermacell James Hardie,
+Oxara, Contec Fiber, and Proplana.
+
+References
+[1] UN Environment Programme, “2022 Global Status Report for Buildings and Construction:
+Towards a Zero-emission, Efficient and Resilient Buildings and Construction Sector.,” Nairobi,
+Kenya, DTI/2482/PA, 2022. Accessed: Jun. 23, 2023. [Online]. Available:
+http://www.unep.org/resources/publication/2022-global-status-report-buildings-and-construction
+[2] P. Bischof, J. Mata-Falcón, and W. Kaufmann, “Fostering innovative and sustainable mass-market
+construction using digital fabrication with concrete,” Cement and Concrete Research, vol. 161, p.
+106948, Nov. 2022, doi: 10.1016/j.cemconres.2022.106948.
+
+9
+
+Proceedings of the IASS Symposium 2024
+Redefining the Art of Structural Design
+
+[3] P. Block, T. Van Mele, M. Rippmann, F. Ranaudo, C. Calvo Barentin, and N. Paulson,
+“Redefining structural art: Strategies, necessities and opportunities,” Structural Engineer, vol. 98,
+no. 1, pp. 66–72, 2020.
+[4] J. Lienhard, “Bending-Active Structures: Form-finding strategies using elastic deformation in
+static and kinematic systems and the structural potentials therein,” Universität Stuttgart, Stuttgart,
+Germany, 2014. doi: http://dx.doi.org/10.18419/opus-107.
+[5] L. Scheder-Bieschin, T. Mele, and P. Block, “Curved-crease folding of bending-active plates as
+formwork: a reusable system for shaping corrugated concrete shell structures,” in Acadia 2022:
+Hybrids & Haecceities, Philadelphia, 2022.
+[6] D. A. Huffman, “Curvature and Creases: A Primer on Paper,” IEEE Transactions on Computers,
+vol. C–25, no. 10, pp. 1010–1019, 1976, doi: 10.1109/TC.1976.1674542.
+[7] R. Maleczek, G. Stern, A. Metzler, and C. Preisinger, “Large Scale Curved Folding Mechanisms,”
+in DMSB 2019, Impact: Design With All Senses, C. Gengnagel, O. Baverel, J. Burry, M.
+Ramsgaard Thomsen, and S. Weinzierl, Eds., Cham: Springer Nature Switzerland, 2020, pp. 539–
+553. doi: 10.1007/978-3-030-29829-6.
+[8] G. Rihaczek, M. Klammer, O. Basnak, A. Körner, R. La Magna, and J. Knippers, “Timbr Foldr –
+A Design Framework and Material System for Closed Cross-section Curved Folded Structures,”
+Journal of the International Association for Shell and Spatial Structures, vol. 63, no. 4, pp. 272–
+288, Dec. 2022, doi: 10.20898/j.iass.2022.014.
+[9] L. Scheder-Bieschin, T. V. Mele, and P. Block, “Curved-Crease Flat-Foldable Bending-Active
+Plate Structures,” in Curved-Crease Flat-Foldable Bending-Active Plate Structures, De Gruyter,
+2023, pp. 355–368. doi: 10.1515/9783111162683-027.
+[10] N. Kotelnikova-Weiler, C. Douthe, E. Lafuente Hernández, O. Baverel, C. Gengnagel, and J.-F.
+Caron, “Materials for Actively-Bent Structures,” International Journal of Space Structures, vol.
+28, no. 3–4, pp. 229–240, Sep. 2013, doi: 10.1260/0266-3511.28.3-4.229.
+[11] L. Scheder-Bieschin, M. Hellrich, T. Van Mele, and Block, Philippe, “Unfold Form: Structural
+design of a curved-crease unfoldable formwork for a corrugated fan-vaulted floor,” in prep.
+[12] R. Maia Avelino, “Thrust Network Optimisation for the Assessment of Vaulted Masonry
+Structures,” Doctoral Thesis, ETH Zurich, 2023. doi: 10.3929/ethz-b-000611351.
+[13] SOFiSTiK AG, “SOFiSTiK.” 2020. [Online]. Available: www.sofistik.com
+[14] A. Elsaid, M. Dawood, R. Seracino, and C. Bobko, “Mechanical properties of kenaf fiber reinforced
+concrete,” Construction and Building Materials, vol. 25, no. 4, pp. 1991–2001, Apr. 2011, doi:
+10.1016/j.conbuildmat.2010.11.052.
+
+10
+
+

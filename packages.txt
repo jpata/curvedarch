@@ -1,0 +1,7 @@
+coinor-libipopt-dev
+libgl1-mesa-glx
+libglu1-mesa
+libsm6
+libxext6
+libxrender1
+ffmpeg
