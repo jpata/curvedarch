@@ -8,6 +8,7 @@ from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, 
 from code.crossvault import run_tna_simulation
 from code.vault_shared import CONFIG
 from code.vault_plots import create_structural_plot
+from code.packing import pack_strips
 
 def mesh_to_plotly_dict(mesh, color='lightblue', opacity=0.8, name='Mesh'):
     # Extract vertices and faces for Plotly Mesh3d
@@ -107,7 +108,13 @@ def main():
     show_pts = st.sidebar.checkbox("Show Vertex Points", value=True, help="Visualize the discrete vertices along the catenaries.")
     show_intrados = st.sidebar.checkbox("Show Intrados (Envelope)", value=True, help="Visualize the lower boundary surface of the vault.")
     show_extrados = st.sidebar.checkbox("Show Extrados (Envelope)", value=True, help="Visualize the upper boundary surface of the vault.")
-    
+
+    st.sidebar.header("5. Plywood Layout")
+    sheet_w = st.sidebar.number_input("Sheet Width (m)", 0.1, 10.0, 2.44, step=0.01, help="Width of the plywood sheet (standard: 2.44m)")
+    sheet_h = st.sidebar.number_input("Sheet Height (m)", 0.1, 10.0, 1.22, step=0.01, help="Height of the plywood sheet (standard: 1.22m)")
+    sheet_margin = st.sidebar.number_input("Packing Margin (m)", 0.0, 0.5, 0.02, step=0.01, help="Minimum distance between strips and sheet edges.")
+    optimize_rot = st.sidebar.checkbox("Optimize Orientation", value=True, help="Rotate strips to minimize their bounding box height before packing.")
+
     # Session state to store simulation results
     if 'sim_data' not in st.session_state:
         st.session_state.sim_data = None
@@ -149,33 +156,34 @@ def main():
         'vault_type': v_type
     }
 
+    # --- GEOMETRY GENERATION (Available to all tabs) ---
+    try:
+        with st.spinner("Generating Corrugated Geometry..."):
+            quadrant_catenaries = generate_envelope_catenaries(
+                active_config,
+                n_spokes=n_catenaries,
+                n_points=discr + 1,
+                corner_cut_radius=corner_cut
+            )
+            
+            meshes_3d, meshes_flat, distortions = [], [], []
+            all_cats_flat = []
+            for quad_cats in quadrant_catenaries:
+                m3d, mflat, dists = generate_vault_meshes(quad_cats, flat_z)
+                meshes_3d.extend(m3d)
+                meshes_flat.extend(mflat)
+                distortions.extend(dists)
+                all_cats_flat.extend(quad_cats)
+                
+    except ValueError as ve:
+        st.error(f"Geometry Generation Error: {ve}")
+        st.info("Try reducing the **Corner Cut Radius** to ensure all spokes retain the same number of nodes.")
+        return
+
     # Visualization
-    tab1, tab2 = st.tabs(["Corrugated Geometry", "Structural Validation"])
+    tab1, tab2, tab3 = st.tabs(["Corrugated Geometry", "Structural Validation", "Plywood Layout"])
 
     with tab1:
-        try:
-            with st.spinner("Generating Corrugated Geometry..."):
-                quadrant_catenaries = generate_envelope_catenaries(
-                    active_config,
-                    n_spokes=n_catenaries,
-                    n_points=discr + 1,
-                    corner_cut_radius=corner_cut
-                )
-                
-                meshes_3d, meshes_flat, distortions = [], [], []
-                all_cats_flat = []
-                for quad_cats in quadrant_catenaries:
-                    m3d, mflat, dists = generate_vault_meshes(quad_cats, flat_z)
-                    meshes_3d.extend(m3d)
-                    meshes_flat.extend(mflat)
-                    distortions.extend(dists)
-                    all_cats_flat.extend(quad_cats)
-                    
-        except ValueError as ve:
-            st.error(f"Geometry Generation Error: {ve}")
-            st.info("Try reducing the **Corner Cut Radius** to ensure all spokes retain the same number of nodes.")
-            return
-
         fig = go.Figure()
 
         # Add Catenaries
@@ -302,6 +310,103 @@ def main():
                 st.pyplot(fig_right)
         else:
             st.info("Click 'Execute TNA Analysis' to generate structural validation data.")
+
+    with tab3:
+        st.subheader("Plywood Packing Layout (Quadrant 1 Only)")
+        # Calculate strips per quadrant
+        strips_per_quad = n_catenaries - 1
+        valid_flat_meshes = [m for m in meshes_flat[:strips_per_quad] if m]
+        
+        if not valid_flat_meshes:
+            st.warning("No flat patterns available to pack. Adjust parameters or check generation errors.")
+        else:
+            with st.spinner("Packing Strips..."):
+                packed_meshes, success, used_dims = pack_strips(
+                    valid_flat_meshes, 
+                    sheet_w, sheet_h, 
+                    margin=sheet_margin, 
+                    optimize_rotation=optimize_rot
+                )
+                
+            if not success:
+                st.error(f"Provided sheet height ({sheet_h:.2f}m) is too small. Minimum required: {used_dims[1]:.2f}m (plus buffer).")
+            else:
+                st.success(f"All {len(packed_meshes)} strips packed! Suggested sheet size: {used_dims[0] + 0.05:.2f}m x {used_dims[1] + 0.05:.2f}m")
+            
+            fig_pack = go.Figure()
+            
+            # Define final sheet with a small buffer (e.g. 5cm)
+            buffer = 0.05
+            final_w = used_dims[0] + buffer
+            final_h = used_dims[1] + buffer
+
+            # Draw Plywood Sheet Boundary
+            fig_pack.add_shape(
+                type="rect",
+                x0=0, y0=0, x1=final_w, y1=final_h,
+                line=dict(color="RoyalBlue", width=3),
+                fillcolor="BurlyWood", opacity=0.1,
+                name="Plywood Sheet"
+            )
+
+            # Draw Optional Reference for Provided Sheet (if different)
+            if abs(final_w - sheet_w) > 0.01 or abs(final_h - sheet_h) > 0.01:
+                fig_pack.add_shape(
+                    type="rect",
+                    x0=0, y0=0, x1=sheet_w, y1=sheet_h,
+                    line=dict(color="gray", width=1, dash="dot"),
+                    fillcolor="rgba(0,0,0,0)", opacity=0.5,
+                    name="Available Sheet"
+                )
+            
+            # Draw Packed Meshes (Batched edges for performance)
+            x_coords, y_coords = [], []
+            for m in packed_meshes:
+                for edge in m.edges():
+                    p1, p2 = m.edge_coordinates(edge)
+                    x_coords.extend([p1[0], p2[0], None])
+                    y_coords.extend([p1[1], p2[1], None])
+            
+            fig_pack.add_trace(go.Scatter(
+                x=x_coords, y=y_coords,
+                mode='lines',
+                line=dict(color='black', width=1),
+                showlegend=False,
+                name="Packed Strips",
+                hoverinfo='none'
+            ))
+            
+            # Set ranges to show both provided and required sheets
+            max_w_view = max(sheet_w, used_dims[0])
+            max_h_view = max(sheet_h, used_dims[1])
+
+            fig_pack.update_layout(
+                xaxis=dict(title="Width (m)", range=[-0.1, max_w_view + 0.1]),
+                yaxis=dict(title="Height (m)", range=[-0.1, max_h_view + 0.1], scaleanchor="x", scaleratio=1),
+                width=1000, 
+                height=700,
+                margin=dict(l=20, r=20, t=40, b=20),
+                template="plotly_white"
+            )
+            st.plotly_chart(fig_pack, use_container_width=True)
+            
+            st.subheader("Layout Metrics")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Strips Placed", f"{len(packed_meshes)} / {len(valid_flat_meshes)}")
+            m2.metric("Final Sheet Size", f"{final_w:.2f} x {final_h:.2f} m")
+            
+            # Simple area utilization of FINAL area
+            final_area = final_w * final_h
+            if final_area > 0:
+                used_area = 0
+                from code.packing import get_mesh_2d_bbox
+                for m in packed_meshes:
+                    min_x, min_y, max_x, max_y = get_mesh_2d_bbox(m)
+                    used_area += (max_x - min_x) * (max_y - min_y)
+                utilization = (used_area / final_area) * 100
+                m3.metric("BBox Utilization", f"{utilization:.1f}%")
+            
+            m4.metric("Fits on Initial Sheet", "YES" if success else "NO")
 
 if __name__ == "__main__":
     main()
