@@ -29,7 +29,7 @@ TEST_CASES = [
         "span_y": 1.8,
         "rise": 0.4,
         "thick": 0.10,
-        "discr": 12,
+        "discr": 8,
         "corner_cut_ratio": 0.7
     },
     {
@@ -39,8 +39,8 @@ TEST_CASES = [
         "rise": 0.4,
         "thick": 0.10,
         "discr": 10,
-        "discr_x": 12,
-        "discr_y": 6,
+        "discr_x": 8,
+        "discr_y": 4,
         "corner_cut_ratio": 0.7
     }
 ]

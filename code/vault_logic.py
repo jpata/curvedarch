@@ -285,7 +285,7 @@ def generate_envelope_catenaries(config, n_spokes=10, n_points=20, corner_cut_ra
                     z_mid = crossvault_middle_hc([x], [y], [x0, x1], [y0, y1], hc)[0]
                 
                 # Alternate Z based on intrados and extrados
-                if global_spoke_idx % 2 == 0:
+                if si % 2 == 0:
                     z = z_mid + thickness / 2
                 else:
                     z = z_mid - thickness / 2
