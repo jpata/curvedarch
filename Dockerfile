@@ -21,6 +21,8 @@ RUN apt-get update && apt-get install -y \
     git \
     # Optimization (TNA solver)
     coinor-libipopt-dev \
+    libblas-dev \
+    liblapack-dev \
     # CadQuery / OCP / Visualization
     libgl1-mesa-glx \
     libglu1-mesa \
