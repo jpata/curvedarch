@@ -16,6 +16,7 @@ WORKDIR /app
 # Combined essential build tools, IPOPT, and visualization/OCP requirements
 RUN apt-get update && apt-get install -y \
     build-essential \
+    pkg-config \
     curl \
     git \
     # Optimization (TNA solver)
