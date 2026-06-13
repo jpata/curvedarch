@@ -3,12 +3,14 @@ import plotly.graph_objects as go
 import numpy as np
 import os
 import math
+from datetime import datetime
 
 from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries
 from code.crossvault import run_tna_simulation
 from code.vault_shared import CONFIG
 from code.vault_plots import create_structural_plot
 from code.packing import pack_strips
+from code.export import export_plywood_layout_pdf
 
 def mesh_to_plotly_dict(mesh, color='lightblue', opacity=0.8, name='Mesh'):
     # Extract vertices and faces for Plotly Mesh3d
@@ -407,6 +409,18 @@ def main():
                 m3.metric("BBox Utilization", f"{utilization:.1f}%")
             
             m4.metric("Fits on Initial Sheet", "YES" if success else "NO")
+
+            st.write("---")
+            st.subheader("Manufacturing Export")
+            
+            pdf_buf = export_plywood_layout_pdf(packed_meshes, final_w, final_h)
+            st.download_button(
+                label="📥 Download Cut Patterns (PDF)",
+                data=pdf_buf,
+                file_name=f"vault_cut_patterns_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                mime="application/pdf",
+                help="Download a high-fidelity vector PDF for CNC or laser cutting. Preserves exact dimensions."
+            )
 
 if __name__ == "__main__":
     main()
