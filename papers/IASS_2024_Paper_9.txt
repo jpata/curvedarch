@@ -1,0 +1,127 @@
+### **1. System Overview**
+
+The "Unfold Form" system is a reusable, low-tech formwork strategy designed to cast unreinforced, compression-only concrete fan-vaulted floors in situ. The system relies on Curved-Crease Unfolding (CCU), where flat-folded bending-active plates are unfolded into a double-curved, corrugated structure. The corrugations provide structural stiffness to the formwork and create stiffening ribs in the final concrete shell.
+
+### **2. Dimensions and Geometry**
+
+The paper describes a half-scale demonstrator representing a module of a housing unit.
+
+* 
+**Overall Plan Dimensions:** 300 cm by 180 cm.
+
+
+* 
+**System Height:** The overall floor buildup height is 40 cm at the four corner supports and 18 cm at the centre crown. Over 70% of the floor depth is below 25 cm.
+
+
+* 
+**Concrete Shell Thickness:** The continuous extrados (top surface) of the shell has a minimum thickness of 4 cm.
+
+
+* 
+**Concrete Rib Depth:** The stiffening ribs (intrados) have a triangular cross-section, varying the structural height of the shell from 4 cm up to 13.5 cm at the deepest centre rib.
+
+
+
+### **3. Material Specifications and Fabrication**
+
+#### **The CCU Formwork**
+
+The formwork is split into four symmetric quadrants (two identical, two mirrored).
+
+* 
+**Plates:** Each of the four parts is assembled from 14 planar plates made of 8 mm poplar plywood. The plywood's lower stiffness orthotropic direction is aligned with the active bending direction.
+
+
+* 
+**Hinges:** The plates are joined by curved textile hinges made from 14 developable strips of industrial woven polyester textile.
+
+
+* 
+**Textile Coating:** The textile has a one-sided PVC coating facing the concrete to ensure a clean finish and allow reuse without release agents. The uncoated side adheres to the plywood.
+
+
+* 
+**Assembly:** The textile strips are sewn together using industrial thread. The plywood plates are attached to the textile using standard double-sided tape. To handle tangential forces at the hinge, the textile perimeter flaps are wrapped around the edges of the plywood and secured with staples.
+
+
+* 
+**Weight:** Each prefabricated quarter weighs 6 kg, totalling 24 kg for the entire formwork.
+
+
+
+#### **The Support Frame**
+
+* 
+**Material:** The substructure frame is made of 24 mm plywood plates.
+
+
+* 
+**Design:** It features zigzag-shaped plates along the crown lines and ledges along the perimeter to precisely position and support the CCU quarters. The sidewalls act as edge moulds for the wet concrete.
+
+
+* 
+**Connections:** The frame is assembled via reversible bolted connections and hinges. The CCU quarters connect to the frame using industrial velcro fasteners.
+
+
+
+### **4. Computational Co-Design Workflow**
+
+To replicate the form-finding and analysis, the authors utilized the following specific software and methods:
+
+* 
+**Geometric Design:** The funicular target geometry of the fan vault is generated using the Thrust Network Optimisation (TNO) package within the COMPAS framework.
+
+
+* 
+**Formwork Generation:** The "reflection method" translates the funicular target into the specific corrugated bending-active plate geometry of the CCU.
+
+
+* 
+**Structural Analysis:** Finite Element Analysis is conducted in SOFISTIK. The curved-crease hinges are modelled with spring connections. The analysis assesses serviceability limit states (SLS), ultimate limit states (ULS), push-over, and buckling to capture snap-through behaviour and internal stresses from active bending.
+
+
+* 
+**Fabrication Design:** The 2D cutting patterns for the plates and textiles are computed by simulating the close-folding mechanism of the CCU.
+
+
+
+### **5. Concrete Mix and Casting Procedure**
+
+The system uses a single-sided mould, meaning there is no top counter-mould.
+
+* 
+**Mix Design:** The concrete requires a non-fluid consistency so it can be manually shaped on the vaulted extrados without sliding. It utilizes a highly calibrated water-cement ratio and includes renewable kenaf fibres to improve consistency, flexural strength, and mitigate shrinkage cracking.
+
+
+* 
+**Casting Process:** Concrete is cast in two layers. The first layer fills the triangular ribs and is compacted using vibrating needles. The second layer forms the continuous shell.
+
+
+* 
+**Shaping:** The top surface (extrados) is manually shaped and compacted using vibrating masonry trowels, following custom timber guides to maintain the strict 4 cm thickness.
+
+
+* 
+**Curing & Decentring:** Decentring (formwork removal) occurs after 3 days of curing. Horizontal thrust during casting and the lifecycle of the vault is restrained by tension ties connecting the column capitals.
+
+
+
+### **6. Final Floor Build-up Stratigraphy**
+
+Above the unreinforced concrete shell, the floor system is levelled and finished with the following layers (from bottom to top):
+
+1. 
+**Dry Fill:** For horizontal levelling, load distribution, and insulation.
+
+
+2. 
+**Fibre Board:** For additional insulation.
+
+
+3. 
+**Dry Screed:** For further load distribution.
+
+
+4. 
+**Rubber Floor Finish:** The final topmost layer.

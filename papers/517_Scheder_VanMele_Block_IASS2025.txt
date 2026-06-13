@@ -1,0 +1,182 @@
+### **1. Overview and Scope**
+
+The paper evaluates the scalability of the "Unfold Form" system, a reusable formwork for casting unreinforced, corrugated concrete shell floors. The formwork uses curved-crease unfolding (CCU) of bending-active plywood plates joined by curved textile hinges. The study relies on a finite element analysis (FEA) performed using the SOFiSTiK software (third-order theory, full geometric nonlinearity, and eigenvalue analysis for buckling) to evaluate structural stability for spans ranging from 2.5 m to 6.0 m.
+
+### **2. Global Geometry and Boundaries**
+
+To ensure structural symmetry, the study utilizes square-plan modules.
+
+* 
+**Span Scale:** Tested from 2.5 m to 6.0 m in 0.5 m increments.
+
+
+* 
+**Geometric Proportions:** The rise $f$ scales proportionally with the general geometric scaling factor $\lambda$, maintaining a constant rise-to-span ratio $f/s$. The curvature radius of the plates also scales proportionally: $R = \lambda \cdot R_0$.
+
+
+* 
+**Boundary Conditions:** The formwork quadrant edges are supported by a frame of perimeter planks and an internal zigzag-shaped cross. In the FE model, interfaces to the columns use pins and springs. The frame is roller-supported at its center, intersections with the cross, and the four corners of the side planks.
+
+
+* 
+**Intermediate Supports:** Additional supporting battens were tested in specific configurations to counteract deflection/buckling: no batten, a single batten at half-span, or double battens placed at one-third and two-thirds of the span.
+
+
+
+### **3. Scaling Strategies**
+
+#### **3.1 Corrugation Density**
+
+Two corrugation configurations form the bounds of the parametric study:
+
+* 
+**Strategy A (Coarse):** The total number of plates is fixed at 16 per quadrant. As the span increases, the rib width physically grows (from 0.32 m at the 2.5 m span up to 0.76 m at the 6.0 m span).
+
+
+* 
+**Strategy B (Dense):** The corrugation width remains constant at approximately 0.32 m at the center. The number of plates increases with scale in discrete increments of four per quadrant (from 16 plates at 2.5 m up to 40 plates at 6.0 m).
+
+
+
+#### **3.2 Plate Thickness and Actuation Physics**
+
+The model utilizes quadrilateral shell elements with a 0.05 m mesh size. Plywood plates are orthotropically aligned (lower Young's modulus aligned with curvature direction). Base frame thickness is 20 mm.
+
+The mechanical properties are governed by the geometric scale $\lambda$ and a thickness scale $\mu$ (where $t \rightarrow \mu \cdot t_0$). The study defines the physical dependencies using the following baseline equations:
+
+* **Bending Moment:**
+
+
+$$M \propto \frac{E t^3}{R} \Rightarrow M \propto \frac{\mu^3}{\lambda}$$
+
+
+
+
+
+* **Actuation Force** (where lever arm $l \propto \lambda$):
+
+
+$$F \propto \frac{M}{\lambda \cdot l} \Rightarrow F \propto \frac{\mu^3}{\lambda^2}$$
+
+
+
+
+
+* **Target Force:** To increase the actuation force by a target factor $\eta$ ($F = F_0 \cdot \eta$):
+
+
+$$\eta = \frac{\mu^3}{\lambda^2} \Rightarrow \mu = \sqrt[3]{\lambda^2 \cdot \eta}$$
+
+
+
+
+
+* **Bending Stresses:**
+
+
+$$\sigma \propto \frac{E \cdot t}{R} \Rightarrow \sigma \propto \frac{\mu}{\lambda}$$
+
+
+
+
+
+
+**Thickness Scaling Scenarios Tested:**
+
+* 
+**Strategy A:** Constant thickness ($\mu = 1$).
+
+
+* 
+**Strategy B:** Proportional thickness ($\mu = \lambda$).
+
+
+* 
+**Strategy C:** Target actuation force ($\mu = \sqrt[3]{\lambda^2}$, assuming $\eta = 1$).
+
+
+
+#### **3.3 Hinge and Concrete Load Parameters**
+
+* 
+**Hinge Stiffness:** Curved hinges are modeled by releasing degrees of freedom between plates and coupling them via in-plane and out-of-plane springs. Evaluated as **Strategy A** (constant stiffness $c$) and **Strategy B** (proportional stiffness $c = \lambda \cdot c_0$).
+
+
+* 
+**Load Cases:** All loads incorporate self-weight and the initial bending-active stress state. Two wet concrete loading strategies were analyzed:
+
+
+* 
+**Load lc (Constant):** Uniform 1.5 kN/m² area load (representing a 6.25 cm concrete layer at 24 kN/m³).
+
+
+* 
+**Load lv (Variable):** Representative of a filled rib with a 4 cm continuous top layer, scaling significantly in mass for coarse corrugations.
+
+
+
+
+
+### **4. FEA Testing Matrix (Sample Groups)**
+
+To replicate the parametric data, the authors analyzed 10 distinct configurations (SG1 to SG10) across spans from 2.5 m to 6.0 m. All tests applied both Load lc and Load lv.
+
+* 
+**SG1:** Coarse, no support, constant thickness, constant stiffness.
+
+
+* 
+**SG2:** Coarse, no support, proportional thickness, constant stiffness.
+
+
+* 
+**SG3:** Coarse, single support, constant thickness, constant stiffness.
+
+
+* 
+**SG4:** Coarse, single support, proportional thickness, constant stiffness.
+
+
+* 
+**SG5:** Coarse, single support, cubic root thickness, constant stiffness.
+
+
+* 
+**SG6:** Coarse, single support, cubic root thickness, proportional stiffness.
+
+
+* 
+**SG7:** Coarse, double support, cubic root thickness, constant stiffness.
+
+
+* 
+**SG8:** Dense, no support, proportional thickness, constant stiffness.
+
+
+* 
+**SG9:** Dense, single support, cubic root thickness, constant stiffness.
+
+
+* 
+**SG10:** Dense, double support, cubic root thickness, constant stiffness.
+
+
+
+### **5. Key Results for Model Validation**
+
+If replicating the study, validate the resulting model against these documented outcomes:
+
+* 
+**Buckling & Deformation:** The buckling load factor (BLF) $\omega$ drops cubically with span size. Maximum deformation $u$ increases cubically as the span increases. The threshold for acceptable relative deformation is $u_{crit} = 1/500$.
+
+
+* 
+**Performance of Scenarios:** Coarse corrugation scales much better structurally than dense corrugation due to increased static depth. Pure proportional thickness (SG4) leads to safe deformations but geometrically demands unfeasible actuation forces.
+
+
+* 
+**Optimal Setup:** SG6 (coarse corrugations, cubic root plate thickness, single mid-span support, and proportional connection stiffness) provides the best balance of robust BLF, limited deformation, and manageable deployment forces up to a 6.0 m span. Dense corrugations require at least double intermediate supports (SG10) to avoid failure.
+
+
+* 
+**Hinge Displacements:** Maximum in-plane hinge displacements remain $\leq$ 0.5 mm at the 6.0 m scale, easily within acceptable concrete formwork tolerances.

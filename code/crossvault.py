@@ -53,6 +53,75 @@ def diagram_to_wire_data(diagram):
         'edges': [list(edge) for edge in diagram.edges()]
     }
 
+def create_custom_fan(x_span, y_span, nx, ny, n_hoops):
+    from compas.datastructures import Mesh
+    from compas_tna.diagrams import FormDiagram
+
+    x0, x1 = x_span
+    y0, y1 = y_span
+    xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+    
+    mesh = Mesh()
+    vertex_map = {}
+
+    def get_vertex(mesh, x, y):
+        key = (round(x, 6), round(y, 6))
+        if key in vertex_map:
+            return vertex_map[key]
+        idx = mesh.add_vertex(x=x, y=y, z=0)
+        vertex_map[key] = idx
+        return idx
+
+    # Quadrant configurations: (corner, nx, ny)
+    quads = [
+        ((x0, y0), nx, ny), # Q1: BL
+        ((x1, y0), nx, ny), # Q2: BR
+        ((x1, y1), nx, ny), # Q3: TR
+        ((x0, y1), nx, ny)  # Q4: TL
+    ]
+
+    for c, qnx, qny in quads:
+        xc, yc = c
+        # Boundary points for this fan quadrant
+        qpts = []
+        
+        # Directions towards center lines
+        dx = xm - xc
+        dy = ym - yc
+        
+        # Edge 1: Along the boundary where x varies (at y=ym)
+        # For Q1: (x0, ym) to (xm, ym)
+        for i in range(qnx + 1):
+            t = i / qnx
+            qpts.append((xc + t * dx, ym))
+            
+        # Edge 2: Along the boundary where y varies (at x=xm)
+        # From (xm, ym) to (xm, yc)
+        for i in range(1, qny + 1):
+            t = i / qny
+            qpts.append((xm, ym - t * dy))
+
+        # Build fan layers (hoops)
+        prev_hoop = [get_vertex(mesh, xc, yc)] * len(qpts)
+        
+        for j in range(1, n_hoops + 1):
+            curr_hoop = []
+            th = j / n_hoops
+            for px, py in qpts:
+                vx = xc + th * (px - xc)
+                vy = yc + th * (py - yc)
+                curr_hoop.append(get_vertex(mesh, vx, vy))
+            
+            # Add faces
+            for i in range(len(qpts) - 1):
+                if j == 1:
+                    mesh.add_face([prev_hoop[i], curr_hoop[i+1], curr_hoop[i]])
+                else:
+                    mesh.add_face([prev_hoop[i], prev_hoop[i+1], curr_hoop[i+1], curr_hoop[i]])
+            prev_hoop = curr_hoop
+
+    return FormDiagram.from_mesh(mesh)
+
 # ----------------------------------------
 # 1. Main Simulation Function
 # ----------------------------------------
@@ -70,16 +139,29 @@ def run_tna_simulation(config=None):
                                  vault_type=vault_type, 
                                  discretisation=config['discretisation_level'])
 
-    discretisation = config['form_discretisation']
+    discr_x = config.get('form_discretisation_x', config.get('form_discretisation', 10))
+    discr_y = config.get('form_discretisation_y', config.get('form_discretisation', 10))
+    n_hoops = config.get('form_discretisation', 10)
+
     if vault_type == 'fan':
-        form = FormDiagram.create_fan(x_span=xy_span[0], y_span=xy_span[1], n_fans=discretisation, n_hoops=discretisation)
+        # form = FormDiagram.create_fan(x_span=xy_span[0], y_span=xy_span[1], n_fans=discretisation, n_hoops=discretisation)
+        form = create_custom_fan(x_span=xy_span[0], y_span=xy_span[1], nx=discr_x, ny=discr_y, n_hoops=n_hoops)
     else:
-        form = FormDiagram.create_cross(x_span=xy_span[0], y_span=xy_span[1], n=discretisation)
+        # For cross vault, we still use symmetric n for now unless specifically requested to refactor its topology
+        n_cross = max(discr_x, discr_y)
+        form = FormDiagram.create_cross(x_span=xy_span[0], y_span=xy_span[1], n=n_cross)
 
     # Support logic
     if config['support_type'] == 'corners':
         for vertex in form.vertices():
-            if form.vertex_degree(vertex) <= 2 and form.is_vertex_on_boundary(vertex):
+            x, y = form.vertex_attributes(vertex, names=['x', 'y'])
+            is_corner = False
+            for cx in xy_span[0]:
+                for cy in xy_span[1]:
+                    if abs(x - cx) < 1e-6 and abs(y - cy) < 1e-6:
+                        is_corner = True
+                        break
+            if is_corner:
                 form.vertex_attribute(vertex, 'is_support', True)
     else:
         for vertex in form.vertices():

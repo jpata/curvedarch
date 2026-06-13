@@ -10,7 +10,9 @@ CONFIG = {
     'thickness': 0.2,
     'max_rise': 1.5,
     'discretisation_level': 40,  # For envelope meshes (higher for smoother curves)
-    'form_discretisation': 10,   # For FormDiagram (n_fans, n_hoops)
+    'form_discretisation': 10,   # Default (legacy)
+    'form_discretisation_x': 12, # Number of ribs/segments in X direction
+    'form_discretisation_y': 8,  # Number of ribs/segments in Y direction
     'solver': 'IPOPT',           # Preferred solver
     'support_type': 'corners',   # 'corners' or 'perimeter'
     'vault_type': 'fan'          # 'cross' or 'fan'
