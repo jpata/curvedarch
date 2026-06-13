@@ -8,7 +8,7 @@ from datetime import datetime
 import logging
 import traceback
 
-from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius
+from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries
 from code.crossvault import run_tna_simulation
 from code.vault_shared import CONFIG
 from code.vault_plots import create_structural_plot
@@ -228,25 +228,35 @@ def run_headless_workflow():
             max_asym = max(asym_min, asym_max)
             
             # Determine safe cut radius
-            full_cats = get_alternating_catenaries(
-                sim_data['form_min'], 
-                sim_data['form_max'], 
-                corner_cut_radius=0.0,
-                center_coords=center_coords
+            n_spokes_total = config.get('form_discretisation_x', 10) + config.get('form_discretisation_y', 10) + 1
+            quad_full_cats = generate_envelope_catenaries(
+                config,
+                n_spokes=n_spokes_total,
+                n_points=config['form_discretisation'] + 1,
+                corner_cut_radius=0.0
             )
-            max_safe_radius = compute_max_safe_cut_radius(full_cats)
+            # Flatten for safe radius calculation
+            all_full_cats = [c for q in quad_full_cats for c in q]
+            max_safe_radius = compute_max_safe_cut_radius(all_full_cats)
             corner_cut = max_safe_radius * case.get('corner_cut_ratio', 0.5)
             
             logger.info(f"  Max safe cut radius: {max_safe_radius:.4f}. Using: {corner_cut:.4f}")
             
-            catenaries = get_alternating_catenaries(
-                sim_data['form_min'], 
-                sim_data['form_max'], 
-                corner_cut,
-                center_coords=center_coords
+            quadrant_catenaries = generate_envelope_catenaries(
+                config,
+                n_spokes=n_spokes_total,
+                n_points=config['form_discretisation'] + 1,
+                corner_cut_radius=corner_cut
             )
             
-            meshes_3d, meshes_flat, distortions = generate_vault_meshes(catenaries, flat_z_offset=-5.0)
+            meshes_3d, meshes_flat, distortions = [], [], []
+            all_cats_flat = []
+            for quad_cats in quadrant_catenaries:
+                m3d, mflat, dists = generate_vault_meshes(quad_cats, flat_z_offset=-5.0)
+                meshes_3d.extend(m3d)
+                meshes_flat.extend(mflat)
+                distortions.extend(dists)
+                all_cats_flat.extend(quad_cats)
             
             # 3. Statistics & Logging
             all_d = [item for sublist in distortions for item in sublist]
@@ -290,7 +300,7 @@ def run_headless_workflow():
                 
                 # Geometry
                 plot_geometry_matplotlib(
-                    meshes_3d, catenaries, config, 
+                    meshes_3d, all_cats_flat, config, 
                     os.path.join(case_dir, f"geometry_{v_name}.png"), 
                     title=f"Corrugated - {v_name.capitalize()}",
                     elevation=elev, azimuth=azim
@@ -320,6 +330,14 @@ def run_headless_workflow():
             f.write(f"[{status}] {res['name']}\n")
             if res.get('converged'):
                 f.write(f"    Strips: {res['num_strips']}, Max Dist: {res['max_distortion']:.6f}, Max Asym: {res['asymmetry_index']:.4f}\n")
+            else:
+                f.write(f"    Error: {res.get('error')}\n")
+    
+    logger.info(f"Summary saved to {summary_file}")
+
+if __name__ == "__main__":
+    run_headless_workflow()
+       f.write(f"    Strips: {res['num_strips']}, Max Dist: {res['max_distortion']:.6f}, Max Asym: {res['asymmetry_index']:.4f}\n")
             else:
                 f.write(f"    Error: {res.get('error')}\n")
     

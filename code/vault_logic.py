@@ -2,6 +2,7 @@ import math
 from compas.geometry import Point, Polyline, Vector, intersection_circle_circle_xy
 from compas.datastructures import Mesh
 from compas_tna.diagrams import FormDiagram
+from code.vault_shared import fanvault_middle_hc, crossvault_middle_hc
 
 def _get_vector(v1, v2):
     return (v2['x'] - v1['x'], v2['y'] - v1['y'])
@@ -220,6 +221,83 @@ def compute_max_safe_cut_radius(catenaries):
             
     # We return slightly less than the absolute limit to avoid precision issues
     return max(0.0, min_dist_to_second_node - 0.01)
+
+def generate_envelope_catenaries(config, n_spokes=10, n_points=20, corner_cut_radius=0.0):
+    """
+    Generates a fixed number of catenaries directly from the vault envelope
+    instead of using the TNA thrust diagrams.
+    """
+    xy_span = config['xy_span']
+    thickness = config['thickness']
+    hc = config['max_rise']
+    v_type = config['vault_type']
+    
+    x0, x1 = xy_span[0]
+    y0, y1 = xy_span[1]
+    xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+    
+    # We follow the existing logic of only using the primary corner (x0, y0)
+    xc, yc = x0, y0
+    dx = xm - xc
+    dy = ym - yc
+    
+    # Split n_spokes between the two boundary edges of the quadrant
+    # nx + ny = n_spokes - 1
+    total_len = abs(dx) + abs(dy)
+    nx = max(1, int(round((n_spokes - 1) * abs(dx) / total_len)))
+    ny = (n_spokes - 1) - nx
+    
+    # Quadrant corners
+    corners = [
+        (x0, y0), (x1, y0), (x1, y1), (x0, y1)
+    ]
+    
+    all_catenaries = []
+    global_spoke_idx = 0
+    
+    for ci, (xc, yc) in enumerate(corners):
+        # Directions towards center lines for this quadrant
+        qdx = xm - xc
+        qdy = ym - yc
+        
+        qpts = []
+        # Edge 1: Along the boundary where x varies (at y=ym)
+        for i in range(nx + 1):
+            t = i / nx
+            qpts.append((xc + t * qdx, ym))
+        # Edge 2: Along the boundary where y varies (at x=xm)
+        for i in range(1, ny + 1):
+            t = i / ny
+            qpts.append((xm, ym - t * qdy))
+            
+        quadrant_cats = []
+        for si, (px, py) in enumerate(qpts):
+            pts = []
+            for j in range(n_points):
+                u = j / (n_points - 1)
+                x = xc + u * (px - xc)
+                y = yc + u * (py - yc)
+                
+                # Z from envelope
+                if v_type == 'fan':
+                    z_mid = fanvault_middle_hc([x], [y], [x0, x1], [y0, y1], hc)[0]
+                else:
+                    z_mid = crossvault_middle_hc([x], [y], [x0, x1], [y0, y1], hc)[0]
+                
+                # Alternate Z based on intrados and extrados
+                if global_spoke_idx % 2 == 0:
+                    z = z_mid + thickness / 2
+                else:
+                    z = z_mid - thickness / 2
+                pts.append(Point(x, y, z))
+                
+            if corner_cut_radius > 1e-6:
+                pts = cut_polyline_at_radius(pts, Point(xc, yc, pts[0].z), corner_cut_radius)
+            quadrant_cats.append(Polyline(pts))
+            global_spoke_idx += 1
+        all_catenaries.append(quadrant_cats)
+            
+    return all_catenaries
 
 def generate_vault_meshes(catenaries, flat_z_offset=-15.0):
     three_d_meshes = []
