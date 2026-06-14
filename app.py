@@ -5,7 +5,7 @@ import os
 import math
 from datetime import datetime
 
-from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries, generate_support_beams
+from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries, generate_support_beams, generate_perimeter_beams
 from code.crossvault import run_tna_simulation
 from code.vault_shared import CONFIG
 from code.vault_plots import create_structural_plot
@@ -108,6 +108,7 @@ def main():
     st.sidebar.header("4. Visibility")
     show_3d = st.sidebar.checkbox("Show 3D Surface", value=True, help="Toggle visibility of the corrugated 3D strips.")
     show_beams = st.sidebar.checkbox("Show Support Beams", value=True, help="Toggle visibility of the central cross-shaped support beams.")
+    show_perimeter_beams = st.sidebar.checkbox("Show Perimeter Beams", value=True, help="Toggle visibility of the 4 outer perimeter support beams.")
     show_flat = st.sidebar.checkbox("Show Flat Patterns", value=True, help="Toggle visibility of the 2D unrolled manufacturing patterns.")
     show_cats = st.sidebar.checkbox("Show Catenary Lines", value=True, help="Visualize the skeleton polylines used to build the corrugated surface.")
     show_pts = st.sidebar.checkbox("Show Vertex Points", value=True, help="Visualize the discrete vertices along the catenaries.")
@@ -164,6 +165,7 @@ def main():
 
     # --- GEOMETRY GENERATION (Available to all tabs) ---
     beam_meshes = []
+    perimeter_beam_meshes = []
     try:
         with st.spinner("Generating Corrugated Geometry..."):
             quadrant_catenaries = generate_envelope_catenaries(
@@ -174,6 +176,7 @@ def main():
             )
             
             beam_meshes = generate_support_beams(active_config, n_spokes=n_catenaries, ply_thickness=ply_thick)
+            perimeter_beam_meshes = generate_perimeter_beams(active_config, n_spokes=n_catenaries, ply_thickness=ply_thick)
             
             meshes_3d, meshes_flat, distortions = [], [], []
             all_cats_flat = []
@@ -229,6 +232,11 @@ def main():
         if show_beams:
             for i, m in enumerate(beam_meshes):
                 fig.add_trace(go.Mesh3d(**mesh_to_plotly_dict(m, color='rgb(100, 100, 100)', opacity=1.0, name=f"Beam {i}")))
+
+        # Add Perimeter Beams
+        if show_perimeter_beams:
+            for i, m in enumerate(perimeter_beam_meshes):
+                fig.add_trace(go.Mesh3d(**mesh_to_plotly_dict(m, color='rgb(80, 80, 80)', opacity=1.0, name=f"Perimeter Beam {i}")))
 
         # Add Flat Patterns
         if show_flat:
