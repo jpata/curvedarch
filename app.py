@@ -5,7 +5,7 @@ import os
 import math
 from datetime import datetime
 
-from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries
+from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries, generate_support_beams
 from code.crossvault import run_tna_simulation
 from code.vault_shared import CONFIG
 from code.vault_plots import create_structural_plot
@@ -78,6 +78,8 @@ def main():
     span_y = st.sidebar.slider("Span Y", 1.0, 20.0, 1.8, step=0.1, help="Total dimension of the vault along the Y-axis (m).")
     rise = st.sidebar.slider("Max Rise", 0.1, 5.0, 0.4, help="The maximum vertical height of the middle surface at the crown.")
     thick = st.sidebar.slider("Thickness", 0.01, 1.0, 0.1, help="The structural thickness of the vault, defining the distance between intrados and extrados.")
+    ply_thick_mm = st.sidebar.number_input("Plywood Thickness (mm)", 1.0, 50.0, 12.0, step=0.1, help="Material thickness of the plywood strips. The support beam will be offset by this amount.")
+    ply_thick = ply_thick_mm / 1000.0
     
     st.sidebar.header("2. TNA Parameters")
     if v_type == "fan":
@@ -105,6 +107,7 @@ def main():
     
     st.sidebar.header("4. Visibility")
     show_3d = st.sidebar.checkbox("Show 3D Surface", value=True, help="Toggle visibility of the corrugated 3D strips.")
+    show_beams = st.sidebar.checkbox("Show Support Beams", value=True, help="Toggle visibility of the central cross-shaped support beams.")
     show_flat = st.sidebar.checkbox("Show Flat Patterns", value=True, help="Toggle visibility of the 2D unrolled manufacturing patterns.")
     show_cats = st.sidebar.checkbox("Show Catenary Lines", value=True, help="Visualize the skeleton polylines used to build the corrugated surface.")
     show_pts = st.sidebar.checkbox("Show Vertex Points", value=True, help="Visualize the discrete vertices along the catenaries.")
@@ -160,6 +163,7 @@ def main():
     }
 
     # --- GEOMETRY GENERATION (Available to all tabs) ---
+    beam_meshes = []
     try:
         with st.spinner("Generating Corrugated Geometry..."):
             quadrant_catenaries = generate_envelope_catenaries(
@@ -168,6 +172,8 @@ def main():
                 n_points=discr + 1,
                 corner_cut_radius=corner_cut
             )
+            
+            beam_meshes = generate_support_beams(active_config, n_spokes=n_catenaries, ply_thickness=ply_thick)
             
             meshes_3d, meshes_flat, distortions = [], [], []
             all_cats_flat = []
@@ -218,6 +224,11 @@ def main():
             for i, m in enumerate(meshes_3d):
                 color = 'rgb(100, 150, 240)' if i % 4 < 2 else 'rgb(240, 150, 100)'
                 fig.add_trace(go.Mesh3d(**mesh_to_plotly_dict(m, color=color, name=f"Strip {i}")))
+
+        # Add Support Beams
+        if show_beams:
+            for i, m in enumerate(beam_meshes):
+                fig.add_trace(go.Mesh3d(**mesh_to_plotly_dict(m, color='rgb(100, 100, 100)', opacity=1.0, name=f"Beam {i}")))
 
         # Add Flat Patterns
         if show_flat:
