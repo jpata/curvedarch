@@ -18,8 +18,8 @@ from code.packing import pack_strips
 # Configuration & Test Cases
 # -----------------------------------------------------------------------------
 
-SHEET_W = 2.44
-SHEET_H = 1.22
+SHEET_W = 3.0
+SHEET_H = 2.1
 SHEET_MARGIN = 0.02
 
 TEST_CASES = [

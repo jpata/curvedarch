@@ -286,9 +286,9 @@ def generate_envelope_catenaries(config, n_spokes=10, n_points=20, corner_cut_ra
                 
                 # Alternate Z based on intrados and extrados
                 if si % 2 == 0:
-                    z = z_mid + thickness / 2
-                else:
                     z = z_mid - thickness / 2
+                else:
+                    z = z_mid + thickness / 2
                 pts.append(Point(x, y, z))
                 
             if corner_cut_radius > 1e-6:
@@ -298,6 +298,393 @@ def generate_envelope_catenaries(config, n_spokes=10, n_points=20, corner_cut_ra
         all_catenaries.append(quadrant_cats)
             
     return all_catenaries
+
+def generate_support_beams(config, n_spokes=10, ply_thickness=0.012):
+    """
+    Generates meshes for cross-shaped support beams running along the centerlines.
+    The top edge matches the zigzag pattern of the corrugation, 
+    offset by ply_thickness to support the underside.
+    The bottom edge is flat at z=0.
+    """
+    xy_span = config['xy_span']
+    thickness = config['thickness']
+    hc = config['max_rise']
+    v_type = config['vault_type']
+    
+    x0, x1 = xy_span[0]
+    y0, y1 = xy_span[1]
+    xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+    
+    # Calculate how points are distributed, same logic as generate_envelope_catenaries
+    dx = xm - x0
+    dy = ym - y0
+    total_len = abs(dx) + abs(dy)
+    nx = max(1, int(round((n_spokes - 1) * abs(dx) / total_len)))
+    ny = (n_spokes - 1) - nx
+    
+    # --- Generate X-Beam (along y=ym, from x0 to x1) ---
+    x_beam_verts = []
+    x_beam_faces = []
+    
+    # First half of X-Beam: x0 to xm (from Corner 0's spoke ends)
+    pts_x_half1 = []
+    for i in range(nx + 1):
+        t = i / nx
+        px = x0 + t * dx
+        z_mid = fanvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0]
+        # Same alternating logic: si corresponds to the point index on this edge
+        si = i
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness # Offset for plywood material thickness
+        pts_x_half1.append((px, z_top))
+        
+    # Second half of X-Beam: xm to x1 (from Corner 1's spoke ends)
+    # Important: Ensure the zigzag aligns at xm.
+    # Corner 1 spokes on Edge 1 go from x1 to xm. We need to go from xm to x1, or construct it matching.
+    pts_x_half2 = []
+    dx_corner1 = xm - x1 # negative
+    for i in range(1, nx + 1):
+        t = i / nx
+        px = x1 + (1.0 - t) * dx_corner1 # Going from xm towards x1
+        z_mid = fanvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0]
+        # In Corner 1, the spoke index si for points on Edge 1 is also i.
+        # But we are iterating backwards from xm (which was si=nx).
+        # To match exactly, the point at px corresponds to si = nx - i.
+        si = nx - i
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness # Offset for plywood material thickness
+        pts_x_half2.append((px, z_top))
+        
+    full_x_profile = pts_x_half1 + pts_x_half2
+    
+    for i, (px, pz) in enumerate(full_x_profile):
+        x_beam_verts.append([px, ym, pz]) # Top
+        x_beam_verts.append([px, ym, 0.0]) # Bottom
+        if i > 0:
+            idx = i * 2
+            x_beam_faces.append([idx-2, idx, idx+1, idx-1])
+
+    x_beam_mesh = Mesh.from_vertices_and_faces(x_beam_verts, x_beam_faces)
+    
+    # --- Generate Y-Beam (along x=xm, from y0 to y1) ---
+    y_beam_verts = []
+    y_beam_faces = []
+    
+    # First half of Y-Beam: y0 to ym (from Corner 0's spoke ends on Edge 2)
+    pts_y_half1 = []
+    # In Corner 0, Edge 2 starts from ym and goes down to y0. But let's build from y0 to ym.
+    for i in range(ny, -1, -1):
+        t = i / ny
+        py = ym - t * dy
+        z_mid = fanvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0]
+        # For Corner 0, Edge 2, spoke index is nx + i (since i goes 1 to ny).
+        # Wait, if i=0, it's the center point. 
+        # In generate_envelope_catenaries: for i in range(1, ny+1): t = i/ny; py = ym - t*dy
+        # So the center point (xm, ym) is actually handled by Edge 1 (si=nx).
+        # To make it continuous, we can use si = nx + i
+        si = nx + i
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness # Offset for plywood material thickness
+        pts_y_half1.append((py, z_top))
+        
+    # Second half of Y-Beam: ym to y1 (from Corner 3 (x0, y1) or Corner 2 (x1, y1))
+    pts_y_half2 = []
+    # Corner 3: x0, y1. dy_c3 = ym - y1 (negative)
+    # Edge 2 for Corner 3 would be on x=xm, varying y.
+    dy_c3 = ym - y1
+    for i in range(1, ny + 1):
+        t = i / ny
+        py = ym - t * dy_c3 # This goes from ym towards y1
+        z_mid = fanvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0]
+        # In Corner 3, to match symmetry, it's si = nx + i
+        si = nx + i
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness # Offset for plywood material thickness
+        pts_y_half2.append((py, z_top))
+        
+    full_y_profile = pts_y_half1 + pts_y_half2
+    
+    for i, (py, pz) in enumerate(full_y_profile):
+        y_beam_verts.append([xm, py, pz]) # Top
+        y_beam_verts.append([xm, py, 0.0]) # Bottom
+        if i > 0:
+            idx = i * 2
+            y_beam_faces.append([idx-2, idx, idx+1, idx-1])
+
+    y_beam_mesh = Mesh.from_vertices_and_faces(y_beam_verts, y_beam_faces)
+    
+    return [x_beam_mesh, y_beam_mesh]
+
+def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
+    """
+    Generates meshes for perimeter support beams running along the 4 outer edges.
+    The top edge matches the boundary spokes of the fan quadrants.
+    The bottom edge is flat at z=0.
+    """
+    xy_span = config['xy_span']
+    thickness = config['thickness']
+    hc = config['max_rise']
+    v_type = config['vault_type']
+    
+    x0, x1 = xy_span[0]
+    y0, y1 = xy_span[1]
+    xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+    
+    # Resolution for the beam curve (matching n_points in generate_envelope_catenaries)
+    # n_points is passed as discr+1 in app.py. We'll use a reasonable default or pass it.
+    n_points = 21 # Default resolution
+    
+    beams = []
+    
+    # Helper to generate a beam mesh along an edge
+    def create_edge_beam(p_start, p_end, quadrant_indices, spoke_indices):
+        verts = []
+        faces = []
+        
+        # p_start to p_mid and p_mid to p_end
+        # Each segment comes from one quadrant's boundary spoke
+        for q_idx, s_idx in zip(quadrant_indices, spoke_indices):
+            # Deterministic corners based on generate_envelope_catenaries
+            corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+            xc, yc = corners[q_idx]
+            
+            # Reconstruct the boundary spoke points
+            # Edge 1 (si=0) goes from xc,yc to xc,ym (or x1,ym etc)
+            # Edge 2 (si=nx+ny) goes from xc,yc to xm,yc
+            
+            # We need to know if this segment goes from corner to middle or middle to corner
+            # Let's simplify: we know the start and end of the segment.
+            # Segment 1: p_start to p_mid. Segment 2: p_mid to p_end.
+            if q_idx in [0, 1, 2, 3]: # Just a placeholder for logic
+                pass
+            
+        # Simplified: Just sample the envelope along the edge and alternate z based on the global spoke index
+        # But wait, the perimeter is ONLY the boundary spokes (si=0 or si=nx+ny).
+        # So we just need the z of THAT specific spoke.
+        pass
+
+    # Actually, let's just do it manually for the 4 edges for clarity.
+    dx = xm - x0
+    dy = ym - y0
+    total_len = abs(dx) + abs(dy)
+    nx = max(1, int(round((n_spokes - 1) * abs(dx) / total_len)))
+    ny = (n_spokes - 1) - nx
+
+    # 1. Beam along y = y0 (x0 to x1)
+    verts, faces = [], []
+    si = nx + ny
+    z_bottom = (-thickness / 2 if si % 2 == 0 else thickness / 2) - ply_thickness
+    # Half 1: x0 to xm (Quad 0, si = nx+ny)
+    for i in range(n_points):
+        u = i / (n_points - 1)
+        px = x0 + u * (xm - x0)
+        z_mid = fanvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        verts.extend([[px, y0, z_top], [px, y0, z_bottom]])
+    # Half 2: xm to x1 (Quad 1, si = nx+ny)
+    for i in range(1, n_points):
+        u = i / (n_points - 1)
+        px = xm + u * (x1 - xm)
+        z_mid = fanvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        verts.extend([[px, y0, z_top], [px, y0, z_bottom]])
+    for i in range(len(verts)//2 - 1):
+        idx = i * 2
+        faces.append([idx, idx+2, idx+3, idx+1])
+    beams.append(Mesh.from_vertices_and_faces(verts, faces))
+
+    # 2. Beam along y = y1 (x0 to x1)
+    verts, faces = [], []
+    si = nx + ny
+    z_bottom = (-thickness / 2 if si % 2 == 0 else thickness / 2) - ply_thickness
+    # Half 1: x0 to xm (Quad 3, si = nx+ny)
+    for i in range(n_points):
+        u = i / (n_points - 1)
+        px = x0 + u * (xm - x0)
+        z_mid = fanvault_middle_hc([px], [y1], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y1], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        verts.extend([[px, y1, z_top], [px, y1, z_bottom]])
+    # Half 2: xm to x1 (Quad 2, si = nx+ny)
+    for i in range(1, n_points):
+        u = i / (n_points - 1)
+        px = xm + u * (x1 - xm)
+        z_mid = fanvault_middle_hc([px], [y1], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y1], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        verts.extend([[px, y1, z_top], [px, y1, z_bottom]])
+    for i in range(len(verts)//2 - 1):
+        idx = i * 2
+        faces.append([idx, idx+2, idx+3, idx+1])
+    beams.append(Mesh.from_vertices_and_faces(verts, faces))
+
+    # 3. Beam along x = x0 (y0 to y1)
+    verts, faces = [], []
+    si = 0
+    z_bottom = (-thickness / 2 if si % 2 == 0 else thickness / 2) - ply_thickness
+    # Half 1: y0 to ym (Quad 0, si = 0)
+    for i in range(n_points):
+        u = i / (n_points - 1)
+        py = y0 + u * (ym - y0)
+        z_mid = fanvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        verts.extend([[x0, py, z_top], [x0, py, z_bottom]])
+    # Half 2: ym to y1 (Quad 3, si = 0)
+    for i in range(1, n_points):
+        u = i / (n_points - 1)
+        py = ym + u * (y1 - ym)
+        z_mid = fanvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        verts.extend([[x0, py, z_top], [x0, py, z_bottom]])
+    for i in range(len(verts)//2 - 1):
+        idx = i * 2
+        faces.append([idx, idx+2, idx+3, idx+1])
+    beams.append(Mesh.from_vertices_and_faces(verts, faces))
+
+    # 4. Beam along x = x1 (y0 to y1)
+    verts, faces = [], []
+    si = 0
+    z_bottom = (-thickness / 2 if si % 2 == 0 else thickness / 2) - ply_thickness
+    # Half 1: y0 to ym (Quad 1, si = 0)
+    for i in range(n_points):
+        u = i / (n_points - 1)
+        py = y0 + u * (ym - y0)
+        z_mid = fanvault_middle_hc([x1], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x1], [py], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        verts.extend([[x1, py, z_top], [x1, py, z_bottom]])
+    # Half 2: ym to y1 (Quad 2, si = 0)
+    for i in range(1, n_points):
+        u = i / (n_points - 1)
+        py = ym + u * (y1 - ym)
+        z_mid = fanvault_middle_hc([x1], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x1], [py], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        verts.extend([[x1, py, z_top], [x1, py, z_bottom]])
+    for i in range(len(verts)//2 - 1):
+        idx = i * 2
+        faces.append([idx, idx+2, idx+3, idx+1])
+    beams.append(Mesh.from_vertices_and_faces(verts, faces))
+
+
+    return beams
+
+def generate_beam_patterns(config, n_spokes=10, ply_thickness=0.012):
+    """
+    Generates 2D flattened meshes for one half of each support and perimeter beam.
+    These are intended for the plywood layout.
+    """
+    xy_span = config['xy_span']
+    thickness = config['thickness']
+    hc = config['max_rise']
+    v_type = config['vault_type']
+    
+    x0, x1 = xy_span[0]
+    y0, y1 = xy_span[1]
+    xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+    
+    dx = xm - x0
+    dy = ym - y0
+    total_len = abs(dx) + abs(dy)
+    nx = max(1, int(round((n_spokes - 1) * abs(dx) / total_len)))
+    ny = (n_spokes - 1) - nx
+    n_points = 21
+
+    beam_patterns = []
+
+    # 1. Support Beam X (Half)
+    pts_x_half = []
+    for i in range(nx + 1):
+        t = i / nx
+        px = x0 + t * dx
+        z_mid = fanvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0]
+        si = i
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        pts_x_half.append((px - x0, z_top))
+    
+    verts, faces = [], []
+    for i, (lx, pz) in enumerate(pts_x_half):
+        verts.append([lx, pz, 0.0])
+        verts.append([lx, 0.0, 0.0])
+        if i > 0:
+            idx = i * 2
+            faces.append([idx-2, idx, idx+1, idx-1])
+    m_sup_x = Mesh.from_vertices_and_faces(verts, faces)
+    m_sup_x.attributes['name'] = "SUP_X"
+    beam_patterns.append(m_sup_x)
+
+    # 2. Support Beam Y (Half)
+    pts_y_half = []
+    for i in range(ny + 1):
+        t = i / ny
+        py = ym - t * dy
+        z_mid = fanvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0]
+        si = nx + i
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        pts_y_half.append((ym - py, z_top))
+    
+    verts, faces = [], []
+    for i, (ly, pz) in enumerate(pts_y_half):
+        verts.append([ly, pz, 0.0])
+        verts.append([ly, 0.0, 0.0])
+        if i > 0:
+            idx = i * 2
+            faces.append([idx-2, idx, idx+1, idx-1])
+    m_sup_y = Mesh.from_vertices_and_faces(verts, faces)
+    m_sup_y.attributes['name'] = "SUP_Y"
+    beam_patterns.append(m_sup_y)
+
+    # 3. Perimeter Beam X-Edge (Half)
+    z_perim_bottom = (-thickness / 2 if (nx + ny) % 2 == 0 else thickness / 2) - ply_thickness
+    pts_px_half = []
+    for i in range(n_points):
+        u = i / (n_points - 1)
+        px = x0 + u * (xm - x0)
+        z_mid = fanvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if (nx + ny) % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        pts_px_half.append((px - x0, z_top))
+    
+    verts, faces = [], []
+    for i, (lx, pz) in enumerate(pts_px_half):
+        verts.append([lx, pz, 0.0])
+        verts.append([lx, z_perim_bottom, 0.0])
+        if i > 0:
+            idx = i * 2
+            faces.append([idx-2, idx, idx+1, idx-1])
+    m_per_x = Mesh.from_vertices_and_faces(verts, faces)
+    m_per_x.attributes['name'] = "PERM_X"
+    beam_patterns.append(m_per_x)
+
+    # 4. Perimeter Beam Y-Edge (Half)
+    z_perim_bottom_y = (-thickness / 2 if 0 % 2 == 0 else thickness / 2) - ply_thickness # si=0 for Y perimeter
+    pts_py_half = []
+    for i in range(n_points):
+        u = i / (n_points - 1)
+        py = y0 + u * (ym - y0)
+        z_mid = fanvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if 0 % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        pts_py_half.append((py - y0, z_top))
+    
+    verts, faces = [], []
+    for i, (ly, pz) in enumerate(pts_py_half):
+        verts.append([ly, pz, 0.0])
+        verts.append([ly, z_perim_bottom_y, 0.0])
+        if i > 0:
+            idx = i * 2
+            faces.append([idx-2, idx, idx+1, idx-1])
+    m_per_y = Mesh.from_vertices_and_faces(verts, faces)
+    m_per_y.attributes['name'] = "PERM_Y"
+    beam_patterns.append(m_per_y)
+
+    return beam_patterns
 
 def generate_vault_meshes(catenaries, flat_z_offset=-15.0):
     three_d_meshes = []
@@ -332,6 +719,8 @@ def generate_vault_meshes(catenaries, flat_z_offset=-15.0):
         unroll_vec = Vector.from_start_end(poly1_3d.points[0], poly1_3d.points[1])
         
         flat_mesh, quad_distortions = develop_strip_to_plane(poly1_3d, poly2_3d, flat_start, unroll_vec)
+        if flat_mesh:
+            flat_mesh.attributes['name'] = f"S_{i+1:02d}"
         flat_meshes.append(flat_mesh)
         distortions_list.append(quad_distortions)
         

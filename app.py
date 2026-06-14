@@ -5,7 +5,7 @@ import os
 import math
 from datetime import datetime
 
-from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries
+from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries, generate_support_beams, generate_perimeter_beams, generate_beam_patterns
 from code.crossvault import run_tna_simulation
 from code.vault_shared import CONFIG
 from code.vault_plots import create_structural_plot
@@ -78,12 +78,14 @@ def main():
     span_y = st.sidebar.slider("Span Y", 1.0, 20.0, 1.8, step=0.1, help="Total dimension of the vault along the Y-axis (m).")
     rise = st.sidebar.slider("Max Rise", 0.1, 5.0, 0.4, help="The maximum vertical height of the middle surface at the crown.")
     thick = st.sidebar.slider("Thickness", 0.01, 1.0, 0.1, help="The structural thickness of the vault, defining the distance between intrados and extrados.")
+    ply_thick_mm = st.sidebar.number_input("Plywood Thickness (mm)", 1.0, 50.0, 12.0, step=0.1, help="Material thickness of the plywood strips. The support beam will be offset by this amount.")
+    ply_thick = ply_thick_mm / 1000.0
     
     st.sidebar.header("2. TNA Parameters")
     if v_type == "fan":
         discr_x = st.sidebar.slider("Ribs X", 2, 30, 8, help="Number of radial ribs along the X boundary for TNA discretization.")
         discr_y = st.sidebar.slider("Ribs Y", 2, 30, 6, help="Number of radial ribs along the Y boundary for TNA discretization.")
-        discr = st.sidebar.number_input("Hoop Discretisation", 5, 40, 10, help="Number of concentric 'hoop' segments from support to crown.")
+        discr = st.sidebar.number_input("Hoop Discretisation", 5, 40, 6, help="Number of concentric 'hoop' segments from support to crown.")
     else:
         discr = st.sidebar.number_input("Form Discretisation", 5, 40, 12, help="Grid resolution for the cross-vault TNA diagram.")
         discr_x, discr_y = discr, discr
@@ -93,18 +95,20 @@ def main():
     st.sidebar.header("3. Unrolling Parameters")
     flat_z = -1
     
-    n_catenaries = st.sidebar.slider("Number of Catenaries", 2, 60, 14, help="Total number of corrugation spokes. Increasing this makes the corrugations denser.")
+    n_catenaries = st.sidebar.slider("Number of Catenaries", 2, 60, 17, help="Total number of corrugation spokes. Increasing this makes the corrugations denser.")
     
     corner_cut = st.sidebar.slider(
         "Corner Cut Radius", 
         0.0, 
         0.2, 
-        0.05,
+        0.1,
         help="Trims the tight convergence of spokes at the supports. Essential for avoiding geometric singularities."
     )
     
     st.sidebar.header("4. Visibility")
     show_3d = st.sidebar.checkbox("Show 3D Surface", value=True, help="Toggle visibility of the corrugated 3D strips.")
+    show_beams = st.sidebar.checkbox("Show Support Beams", value=True, help="Toggle visibility of the central cross-shaped support beams.")
+    show_perimeter_beams = st.sidebar.checkbox("Show Perimeter Beams", value=True, help="Toggle visibility of the 4 outer perimeter support beams.")
     show_flat = st.sidebar.checkbox("Show Flat Patterns", value=True, help="Toggle visibility of the 2D unrolled manufacturing patterns.")
     show_cats = st.sidebar.checkbox("Show Catenary Lines", value=True, help="Visualize the skeleton polylines used to build the corrugated surface.")
     show_pts = st.sidebar.checkbox("Show Vertex Points", value=True, help="Visualize the discrete vertices along the catenaries.")
@@ -113,10 +117,10 @@ def main():
 
     st.sidebar.header("5. Plywood Layout")
     packing_mode = st.sidebar.radio("Packing Mode", ["Single Custom Sheet", "Multiple Standard Sheets"], help="Single: finds the minimal sheet to fit everything. Multiple: uses fixed sheet size and multiple pages.")
-    sheet_w = st.sidebar.number_input("Sheet Width (m)", 0.1, 10.0, 2.44, step=0.01, help="Width of the plywood sheet (standard: 2.44m)")
-    sheet_h = st.sidebar.number_input("Sheet Height (m)", 0.1, 10.0, 1.22, step=0.01, help="Height of the plywood sheet (standard: 1.22m)")
-    sheet_margin = st.sidebar.number_input("Packing Margin (m)", 0.0, 0.5, 0.02, step=0.01, help="Minimum distance between strips and sheet edges.")
-    optimize_rot = st.sidebar.checkbox("Optimize Orientation", value=True, help="Rotate strips to minimize their bounding box height before packing.")
+    sheet_w = st.sidebar.number_input("Sheet Width (m)", 0.05, 10.0, 2.44, step=0.001, help="Width of the sheet (Default: 3.0m)")
+    sheet_h = st.sidebar.number_input("Sheet Height (m)", 0.05, 10.0, 1.22, step=0.001, help="Height of the sheet (Default: 2.1m)")
+    sheet_margin = st.sidebar.number_input("Packing Margin (m)", 0.0, 0.5, 0.1, step=0.01, help="Minimum distance between strips and sheet edges.")
+    optimize_rot = st.sidebar.checkbox("Optimize Orientation", value=False, help="Rotate strips to minimize their bounding box height before packing.")
 
     # Session state to store simulation results
     if 'sim_data' not in st.session_state:
@@ -160,6 +164,8 @@ def main():
     }
 
     # --- GEOMETRY GENERATION (Available to all tabs) ---
+    beam_meshes = []
+    perimeter_beam_meshes = []
     try:
         with st.spinner("Generating Corrugated Geometry..."):
             quadrant_catenaries = generate_envelope_catenaries(
@@ -168,6 +174,10 @@ def main():
                 n_points=discr + 1,
                 corner_cut_radius=corner_cut
             )
+            
+            beam_meshes = generate_support_beams(active_config, n_spokes=n_catenaries, ply_thickness=ply_thick)
+            perimeter_beam_meshes = generate_perimeter_beams(active_config, n_spokes=n_catenaries, ply_thickness=ply_thick)
+            beam_patterns = generate_beam_patterns(active_config, n_spokes=n_catenaries, ply_thickness=ply_thick)
             
             meshes_3d, meshes_flat, distortions = [], [], []
             all_cats_flat = []
@@ -218,6 +228,16 @@ def main():
             for i, m in enumerate(meshes_3d):
                 color = 'rgb(100, 150, 240)' if i % 4 < 2 else 'rgb(240, 150, 100)'
                 fig.add_trace(go.Mesh3d(**mesh_to_plotly_dict(m, color=color, name=f"Strip {i}")))
+
+        # Add Support Beams
+        if show_beams:
+            for i, m in enumerate(beam_meshes):
+                fig.add_trace(go.Mesh3d(**mesh_to_plotly_dict(m, color='rgb(100, 100, 100)', opacity=1.0, name=f"Beam {i}")))
+
+        # Add Perimeter Beams
+        if show_perimeter_beams:
+            for i, m in enumerate(perimeter_beam_meshes):
+                fig.add_trace(go.Mesh3d(**mesh_to_plotly_dict(m, color='rgb(80, 80, 80)', opacity=1.0, name=f"Perimeter Beam {i}")))
 
         # Add Flat Patterns
         if show_flat:
@@ -319,6 +339,7 @@ def main():
         # Calculate strips per quadrant
         strips_per_quad = n_catenaries - 1
         valid_flat_meshes = [m for m in meshes_flat[:strips_per_quad] if m]
+        valid_flat_meshes.extend(beam_patterns)
         
         if not valid_flat_meshes:
             st.warning("No flat patterns available to pack. Adjust parameters or check generation errors.")
@@ -379,13 +400,24 @@ def main():
                     name="Plywood Sheet"
                 )
 
-                # Draw Packed Meshes
+                # Draw Packed Meshes and Labels
                 x_coords, y_coords = [], []
+                text_x, text_y, text_labels = [], [], []
+                from code.packing import get_mesh_2d_bbox
+                
                 for m in sheet['meshes']:
+                    # Outline
                     for edge in m.edges():
                         p1, p2 = m.edge_coordinates(edge)
                         x_coords.extend([p1[0], p2[0], None])
                         y_coords.extend([p1[1], p2[1], None])
+                    
+                    # Label at center of bbox
+                    name = m.attributes.get('name', '???')
+                    min_x, min_y, max_x, max_y = get_mesh_2d_bbox(m)
+                    text_x.append((min_x + max_x) / 2)
+                    text_y.append((min_y + max_y) / 2)
+                    text_labels.append(name)
                 
                 fig_pack.add_trace(go.Scatter(
                     x=x_coords, y=y_coords,
@@ -395,11 +427,21 @@ def main():
                     name="Packed Strips",
                     hoverinfo='none'
                 ))
+
+                fig_pack.add_trace(go.Scatter(
+                    x=text_x, y=text_y,
+                    mode='text',
+                    text=text_labels,
+                    textposition='middle center',
+                    textfont=dict(size=10, color='blue'),
+                    showlegend=False,
+                    name="Labels"
+                ))
                 
                 fig_pack.update_layout(
                     xaxis=dict(title="Width (m)", range=[-0.1, final_w + 0.1]),
                     yaxis=dict(title="Height (m)", range=[-0.1, final_h + 0.1], scaleanchor="x", scaleratio=1),
-                    width=1000, height=600,
+                    width=1000, height=700,
                     margin=dict(l=20, r=20, t=40, b=20),
                     template="plotly_white"
                 )
@@ -429,7 +471,7 @@ def main():
             
             # Prepare data for export
             export_data = [{'meshes': s['meshes'], 'w': s['w'], 'h': s['h']} for s in sheets_to_show]
-            pdf_buf = export_plywood_layout_pdf(export_data)
+            pdf_buf = export_plywood_layout_pdf(export_data, color='red')
             
             st.download_button(
                 label=f"📥 Download Cut Patterns ({len(sheets_to_show)} Page PDF)",
