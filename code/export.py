@@ -9,6 +9,7 @@ def export_plywood_layout_pdf(sheets_data, title="Cut Patterns", color='black'):
     'sheets_data' is a list of dicts: [{'meshes': [...], 'w': ..., 'h': ...}, ...]
     """
     from matplotlib.backends.backend_pdf import PdfPages
+    from code.packing import get_mesh_2d_bbox
     
     buf = io.BytesIO()
     with PdfPages(buf) as pdf:
@@ -31,11 +32,20 @@ def export_plywood_layout_pdf(sheets_data, title="Cut Patterns", color='black'):
             for i in range(len(sheet_boundary) - 1):
                 all_lines.append([sheet_boundary[i], sheet_boundary[i+1]])
 
-            # Add Mesh Edges
+            # Add Mesh Edges and Labels
             for mesh in meshes:
                 for edge in mesh.edges():
                     p1, p2 = mesh.edge_coordinates(edge)
                     all_lines.append([(p1[0], p1[1]), (p2[0], p2[1])])
+                
+                # Add Label
+                name = mesh.attributes.get('name', '')
+                if name:
+                    # Simple bbox center for label placement
+                    min_x, min_y, max_x, max_y = get_mesh_2d_bbox(mesh)
+                    ax.text((min_x + max_x)/2, (min_y + max_y)/2, name, 
+                            color=color, ha='center', va='center', 
+                            fontsize=8, fontweight='bold')
                     
             # 2. Draw lines
             lc = LineCollection(all_lines, colors=color, linewidths=4.0)

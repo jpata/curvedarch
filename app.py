@@ -5,7 +5,7 @@ import os
 import math
 from datetime import datetime
 
-from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries, generate_support_beams, generate_perimeter_beams
+from code.vault_logic import get_alternating_catenaries, generate_vault_meshes, compute_max_safe_cut_radius, generate_envelope_catenaries, generate_support_beams, generate_perimeter_beams, generate_beam_patterns
 from code.crossvault import run_tna_simulation
 from code.vault_shared import CONFIG
 from code.vault_plots import create_structural_plot
@@ -117,10 +117,10 @@ def main():
 
     st.sidebar.header("5. Plywood Layout")
     packing_mode = st.sidebar.radio("Packing Mode", ["Single Custom Sheet", "Multiple Standard Sheets"], help="Single: finds the minimal sheet to fit everything. Multiple: uses fixed sheet size and multiple pages.")
-    sheet_w = st.sidebar.number_input("Sheet Width (m)", 0.05, 10.0, 3.0, step=0.001, help="Width of the sheet (Default: 3.0m)")
-    sheet_h = st.sidebar.number_input("Sheet Height (m)", 0.05, 10.0, 2.1, step=0.001, help="Height of the sheet (Default: 2.1m)")
-    sheet_margin = st.sidebar.number_input("Packing Margin (m)", 0.0, 0.5, 0.02, step=0.01, help="Minimum distance between strips and sheet edges.")
-    optimize_rot = st.sidebar.checkbox("Optimize Orientation", value=True, help="Rotate strips to minimize their bounding box height before packing.")
+    sheet_w = st.sidebar.number_input("Sheet Width (m)", 0.05, 10.0, 2.44, step=0.001, help="Width of the sheet (Default: 3.0m)")
+    sheet_h = st.sidebar.number_input("Sheet Height (m)", 0.05, 10.0, 1.22, step=0.001, help="Height of the sheet (Default: 2.1m)")
+    sheet_margin = st.sidebar.number_input("Packing Margin (m)", 0.0, 0.5, 0.1, step=0.01, help="Minimum distance between strips and sheet edges.")
+    optimize_rot = st.sidebar.checkbox("Optimize Orientation", value=False, help="Rotate strips to minimize their bounding box height before packing.")
 
     # Session state to store simulation results
     if 'sim_data' not in st.session_state:
@@ -177,6 +177,7 @@ def main():
             
             beam_meshes = generate_support_beams(active_config, n_spokes=n_catenaries, ply_thickness=ply_thick)
             perimeter_beam_meshes = generate_perimeter_beams(active_config, n_spokes=n_catenaries, ply_thickness=ply_thick)
+            beam_patterns = generate_beam_patterns(active_config, n_spokes=n_catenaries, ply_thickness=ply_thick)
             
             meshes_3d, meshes_flat, distortions = [], [], []
             all_cats_flat = []
@@ -338,6 +339,7 @@ def main():
         # Calculate strips per quadrant
         strips_per_quad = n_catenaries - 1
         valid_flat_meshes = [m for m in meshes_flat[:strips_per_quad] if m]
+        valid_flat_meshes.extend(beam_patterns)
         
         if not valid_flat_meshes:
             st.warning("No flat patterns available to pack. Adjust parameters or check generation errors.")
@@ -398,13 +400,24 @@ def main():
                     name="Plywood Sheet"
                 )
 
-                # Draw Packed Meshes
+                # Draw Packed Meshes and Labels
                 x_coords, y_coords = [], []
+                text_x, text_y, text_labels = [], [], []
+                from code.packing import get_mesh_2d_bbox
+                
                 for m in sheet['meshes']:
+                    # Outline
                     for edge in m.edges():
                         p1, p2 = m.edge_coordinates(edge)
                         x_coords.extend([p1[0], p2[0], None])
                         y_coords.extend([p1[1], p2[1], None])
+                    
+                    # Label at center of bbox
+                    name = m.attributes.get('name', '???')
+                    min_x, min_y, max_x, max_y = get_mesh_2d_bbox(m)
+                    text_x.append((min_x + max_x) / 2)
+                    text_y.append((min_y + max_y) / 2)
+                    text_labels.append(name)
                 
                 fig_pack.add_trace(go.Scatter(
                     x=x_coords, y=y_coords,
@@ -413,6 +426,16 @@ def main():
                     showlegend=False,
                     name="Packed Strips",
                     hoverinfo='none'
+                ))
+
+                fig_pack.add_trace(go.Scatter(
+                    x=text_x, y=text_y,
+                    mode='text',
+                    text=text_labels,
+                    textposition='middle center',
+                    textfont=dict(size=10, color='blue'),
+                    showlegend=False,
+                    name="Labels"
                 ))
                 
                 fig_pack.update_layout(

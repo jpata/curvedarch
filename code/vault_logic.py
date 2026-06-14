@@ -573,6 +573,119 @@ def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
 
     return beams
 
+def generate_beam_patterns(config, n_spokes=10, ply_thickness=0.012):
+    """
+    Generates 2D flattened meshes for one half of each support and perimeter beam.
+    These are intended for the plywood layout.
+    """
+    xy_span = config['xy_span']
+    thickness = config['thickness']
+    hc = config['max_rise']
+    v_type = config['vault_type']
+    
+    x0, x1 = xy_span[0]
+    y0, y1 = xy_span[1]
+    xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+    
+    dx = xm - x0
+    dy = ym - y0
+    total_len = abs(dx) + abs(dy)
+    nx = max(1, int(round((n_spokes - 1) * abs(dx) / total_len)))
+    ny = (n_spokes - 1) - nx
+    n_points = 21
+
+    beam_patterns = []
+
+    # 1. Support Beam X (Half)
+    pts_x_half = []
+    for i in range(nx + 1):
+        t = i / nx
+        px = x0 + t * dx
+        z_mid = fanvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0]
+        si = i
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        pts_x_half.append((px - x0, z_top))
+    
+    verts, faces = [], []
+    for i, (lx, pz) in enumerate(pts_x_half):
+        verts.append([lx, pz, 0.0])
+        verts.append([lx, 0.0, 0.0])
+        if i > 0:
+            idx = i * 2
+            faces.append([idx-2, idx, idx+1, idx-1])
+    m_sup_x = Mesh.from_vertices_and_faces(verts, faces)
+    m_sup_x.attributes['name'] = "SUP_X"
+    beam_patterns.append(m_sup_x)
+
+    # 2. Support Beam Y (Half)
+    pts_y_half = []
+    for i in range(ny + 1):
+        t = i / ny
+        py = ym - t * dy
+        z_mid = fanvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0]
+        si = nx + i
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        pts_y_half.append((ym - py, z_top))
+    
+    verts, faces = [], []
+    for i, (ly, pz) in enumerate(pts_y_half):
+        verts.append([ly, pz, 0.0])
+        verts.append([ly, 0.0, 0.0])
+        if i > 0:
+            idx = i * 2
+            faces.append([idx-2, idx, idx+1, idx-1])
+    m_sup_y = Mesh.from_vertices_and_faces(verts, faces)
+    m_sup_y.attributes['name'] = "SUP_Y"
+    beam_patterns.append(m_sup_y)
+
+    # 3. Perimeter Beam X-Edge (Half)
+    z_perim_bottom = (-thickness / 2 if (nx + ny) % 2 == 0 else thickness / 2) - ply_thickness
+    pts_px_half = []
+    for i in range(n_points):
+        u = i / (n_points - 1)
+        px = x0 + u * (xm - x0)
+        z_mid = fanvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if (nx + ny) % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        pts_px_half.append((px - x0, z_top))
+    
+    verts, faces = [], []
+    for i, (lx, pz) in enumerate(pts_px_half):
+        verts.append([lx, pz, 0.0])
+        verts.append([lx, z_perim_bottom, 0.0])
+        if i > 0:
+            idx = i * 2
+            faces.append([idx-2, idx, idx+1, idx-1])
+    m_per_x = Mesh.from_vertices_and_faces(verts, faces)
+    m_per_x.attributes['name'] = "PERM_X"
+    beam_patterns.append(m_per_x)
+
+    # 4. Perimeter Beam Y-Edge (Half)
+    z_perim_bottom_y = (-thickness / 2 if 0 % 2 == 0 else thickness / 2) - ply_thickness # si=0 for Y perimeter
+    pts_py_half = []
+    for i in range(n_points):
+        u = i / (n_points - 1)
+        py = y0 + u * (ym - y0)
+        z_mid = fanvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0]
+        z_top = z_mid - thickness / 2 if 0 % 2 == 0 else z_mid + thickness / 2
+        z_top -= ply_thickness
+        pts_py_half.append((py - y0, z_top))
+    
+    verts, faces = [], []
+    for i, (ly, pz) in enumerate(pts_py_half):
+        verts.append([ly, pz, 0.0])
+        verts.append([ly, z_perim_bottom_y, 0.0])
+        if i > 0:
+            idx = i * 2
+            faces.append([idx-2, idx, idx+1, idx-1])
+    m_per_y = Mesh.from_vertices_and_faces(verts, faces)
+    m_per_y.attributes['name'] = "PERM_Y"
+    beam_patterns.append(m_per_y)
+
+    return beam_patterns
+
 def generate_vault_meshes(catenaries, flat_z_offset=-15.0):
     three_d_meshes = []
     flat_meshes = []
@@ -606,6 +719,8 @@ def generate_vault_meshes(catenaries, flat_z_offset=-15.0):
         unroll_vec = Vector.from_start_end(poly1_3d.points[0], poly1_3d.points[1])
         
         flat_mesh, quad_distortions = develop_strip_to_plane(poly1_3d, poly2_3d, flat_start, unroll_vec)
+        if flat_mesh:
+            flat_mesh.attributes['name'] = f"S_{i+1:02d}"
         flat_meshes.append(flat_mesh)
         distortions_list.append(quad_distortions)
         
