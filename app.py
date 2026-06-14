@@ -85,7 +85,7 @@ def main():
     if v_type == "fan":
         discr_x = st.sidebar.slider("Ribs X", 2, 30, 8, help="Number of radial ribs along the X boundary for TNA discretization.")
         discr_y = st.sidebar.slider("Ribs Y", 2, 30, 6, help="Number of radial ribs along the Y boundary for TNA discretization.")
-        discr = st.sidebar.number_input("Hoop Discretisation", 5, 40, 10, help="Number of concentric 'hoop' segments from support to crown.")
+        discr = st.sidebar.number_input("Hoop Discretisation", 5, 40, 6, help="Number of concentric 'hoop' segments from support to crown.")
     else:
         discr = st.sidebar.number_input("Form Discretisation", 5, 40, 12, help="Grid resolution for the cross-vault TNA diagram.")
         discr_x, discr_y = discr, discr
@@ -95,13 +95,13 @@ def main():
     st.sidebar.header("3. Unrolling Parameters")
     flat_z = -1
     
-    n_catenaries = st.sidebar.slider("Number of Catenaries", 2, 60, 14, help="Total number of corrugation spokes. Increasing this makes the corrugations denser.")
+    n_catenaries = st.sidebar.slider("Number of Catenaries", 2, 60, 17, help="Total number of corrugation spokes. Increasing this makes the corrugations denser.")
     
     corner_cut = st.sidebar.slider(
         "Corner Cut Radius", 
         0.0, 
         0.2, 
-        0.05,
+        0.1,
         help="Trims the tight convergence of spokes at the supports. Essential for avoiding geometric singularities."
     )
     

@@ -286,9 +286,9 @@ def generate_envelope_catenaries(config, n_spokes=10, n_points=20, corner_cut_ra
                 
                 # Alternate Z based on intrados and extrados
                 if si % 2 == 0:
-                    z = z_mid + thickness / 2
-                else:
                     z = z_mid - thickness / 2
+                else:
+                    z = z_mid + thickness / 2
                 pts.append(Point(x, y, z))
                 
             if corner_cut_radius > 1e-6:
@@ -334,7 +334,7 @@ def generate_support_beams(config, n_spokes=10, ply_thickness=0.012):
         z_mid = fanvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [ym], [x0, x1], [y0, y1], hc)[0]
         # Same alternating logic: si corresponds to the point index on this edge
         si = i
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness # Offset for plywood material thickness
         pts_x_half1.append((px, z_top))
         
@@ -351,7 +351,7 @@ def generate_support_beams(config, n_spokes=10, ply_thickness=0.012):
         # But we are iterating backwards from xm (which was si=nx).
         # To match exactly, the point at px corresponds to si = nx - i.
         si = nx - i
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness # Offset for plywood material thickness
         pts_x_half2.append((px, z_top))
         
@@ -383,7 +383,7 @@ def generate_support_beams(config, n_spokes=10, ply_thickness=0.012):
         # So the center point (xm, ym) is actually handled by Edge 1 (si=nx).
         # To make it continuous, we can use si = nx + i
         si = nx + i
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness # Offset for plywood material thickness
         pts_y_half1.append((py, z_top))
         
@@ -398,7 +398,7 @@ def generate_support_beams(config, n_spokes=10, ply_thickness=0.012):
         z_mid = fanvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([xm], [py], [x0, x1], [y0, y1], hc)[0]
         # In Corner 3, to match symmetry, it's si = nx + i
         si = nx + i
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness # Offset for plywood material thickness
         pts_y_half2.append((py, z_top))
         
@@ -473,13 +473,13 @@ def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
     # 1. Beam along y = y0 (x0 to x1)
     verts, faces = [], []
     si = nx + ny
-    z_bottom = (thickness / 2 if si % 2 == 0 else -thickness / 2) - ply_thickness
+    z_bottom = (-thickness / 2 if si % 2 == 0 else thickness / 2) - ply_thickness
     # Half 1: x0 to xm (Quad 0, si = nx+ny)
     for i in range(n_points):
         u = i / (n_points - 1)
         px = x0 + u * (xm - x0)
         z_mid = fanvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0]
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness
         verts.extend([[px, y0, z_top], [px, y0, z_bottom]])
     # Half 2: xm to x1 (Quad 1, si = nx+ny)
@@ -487,7 +487,7 @@ def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
         u = i / (n_points - 1)
         px = xm + u * (x1 - xm)
         z_mid = fanvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y0], [x0, x1], [y0, y1], hc)[0]
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness
         verts.extend([[px, y0, z_top], [px, y0, z_bottom]])
     for i in range(len(verts)//2 - 1):
@@ -498,13 +498,13 @@ def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
     # 2. Beam along y = y1 (x0 to x1)
     verts, faces = [], []
     si = nx + ny
-    z_bottom = (thickness / 2 if si % 2 == 0 else -thickness / 2) - ply_thickness
+    z_bottom = (-thickness / 2 if si % 2 == 0 else thickness / 2) - ply_thickness
     # Half 1: x0 to xm (Quad 3, si = nx+ny)
     for i in range(n_points):
         u = i / (n_points - 1)
         px = x0 + u * (xm - x0)
         z_mid = fanvault_middle_hc([px], [y1], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y1], [x0, x1], [y0, y1], hc)[0]
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness
         verts.extend([[px, y1, z_top], [px, y1, z_bottom]])
     # Half 2: xm to x1 (Quad 2, si = nx+ny)
@@ -512,7 +512,7 @@ def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
         u = i / (n_points - 1)
         px = xm + u * (x1 - xm)
         z_mid = fanvault_middle_hc([px], [y1], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([px], [y1], [x0, x1], [y0, y1], hc)[0]
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness
         verts.extend([[px, y1, z_top], [px, y1, z_bottom]])
     for i in range(len(verts)//2 - 1):
@@ -523,13 +523,13 @@ def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
     # 3. Beam along x = x0 (y0 to y1)
     verts, faces = [], []
     si = 0
-    z_bottom = (thickness / 2 if si % 2 == 0 else -thickness / 2) - ply_thickness
+    z_bottom = (-thickness / 2 if si % 2 == 0 else thickness / 2) - ply_thickness
     # Half 1: y0 to ym (Quad 0, si = 0)
     for i in range(n_points):
         u = i / (n_points - 1)
         py = y0 + u * (ym - y0)
         z_mid = fanvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0]
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness
         verts.extend([[x0, py, z_top], [x0, py, z_bottom]])
     # Half 2: ym to y1 (Quad 3, si = 0)
@@ -537,7 +537,7 @@ def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
         u = i / (n_points - 1)
         py = ym + u * (y1 - ym)
         z_mid = fanvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x0], [py], [x0, x1], [y0, y1], hc)[0]
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness
         verts.extend([[x0, py, z_top], [x0, py, z_bottom]])
     for i in range(len(verts)//2 - 1):
@@ -548,13 +548,13 @@ def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
     # 4. Beam along x = x1 (y0 to y1)
     verts, faces = [], []
     si = 0
-    z_bottom = (thickness / 2 if si % 2 == 0 else -thickness / 2) - ply_thickness
+    z_bottom = (-thickness / 2 if si % 2 == 0 else thickness / 2) - ply_thickness
     # Half 1: y0 to ym (Quad 1, si = 0)
     for i in range(n_points):
         u = i / (n_points - 1)
         py = y0 + u * (ym - y0)
         z_mid = fanvault_middle_hc([x1], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x1], [py], [x0, x1], [y0, y1], hc)[0]
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness
         verts.extend([[x1, py, z_top], [x1, py, z_bottom]])
     # Half 2: ym to y1 (Quad 2, si = 0)
@@ -562,7 +562,7 @@ def generate_perimeter_beams(config, n_spokes=10, ply_thickness=0.012):
         u = i / (n_points - 1)
         py = ym + u * (y1 - ym)
         z_mid = fanvault_middle_hc([x1], [py], [x0, x1], [y0, y1], hc)[0] if v_type == 'fan' else crossvault_middle_hc([x1], [py], [x0, x1], [y0, y1], hc)[0]
-        z_top = z_mid + thickness / 2 if si % 2 == 0 else z_mid - thickness / 2
+        z_top = z_mid - thickness / 2 if si % 2 == 0 else z_mid + thickness / 2
         z_top -= ply_thickness
         verts.extend([[x1, py, z_top], [x1, py, z_bottom]])
     for i in range(len(verts)//2 - 1):
