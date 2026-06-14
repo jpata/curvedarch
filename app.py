@@ -113,8 +113,8 @@ def main():
 
     st.sidebar.header("5. Plywood Layout")
     packing_mode = st.sidebar.radio("Packing Mode", ["Single Custom Sheet", "Multiple Standard Sheets"], help="Single: finds the minimal sheet to fit everything. Multiple: uses fixed sheet size and multiple pages.")
-    sheet_w = st.sidebar.number_input("Sheet Width (m)", 0.1, 10.0, 2.44, step=0.01, help="Width of the plywood sheet (standard: 2.44m)")
-    sheet_h = st.sidebar.number_input("Sheet Height (m)", 0.1, 10.0, 1.22, step=0.01, help="Height of the plywood sheet (standard: 1.22m)")
+    sheet_w = st.sidebar.number_input("Sheet Width (m)", 0.05, 10.0, 3.0, step=0.001, help="Width of the sheet (Default: 3.0m)")
+    sheet_h = st.sidebar.number_input("Sheet Height (m)", 0.05, 10.0, 2.1, step=0.001, help="Height of the sheet (Default: 2.1m)")
     sheet_margin = st.sidebar.number_input("Packing Margin (m)", 0.0, 0.5, 0.02, step=0.01, help="Minimum distance between strips and sheet edges.")
     optimize_rot = st.sidebar.checkbox("Optimize Orientation", value=True, help="Rotate strips to minimize their bounding box height before packing.")
 
@@ -399,7 +399,7 @@ def main():
                 fig_pack.update_layout(
                     xaxis=dict(title="Width (m)", range=[-0.1, final_w + 0.1]),
                     yaxis=dict(title="Height (m)", range=[-0.1, final_h + 0.1], scaleanchor="x", scaleratio=1),
-                    width=1000, height=600,
+                    width=1000, height=700,
                     margin=dict(l=20, r=20, t=40, b=20),
                     template="plotly_white"
                 )
@@ -429,7 +429,7 @@ def main():
             
             # Prepare data for export
             export_data = [{'meshes': s['meshes'], 'w': s['w'], 'h': s['h']} for s in sheets_to_show]
-            pdf_buf = export_plywood_layout_pdf(export_data)
+            pdf_buf = export_plywood_layout_pdf(export_data, color='red')
             
             st.download_button(
                 label=f"📥 Download Cut Patterns ({len(sheets_to_show)} Page PDF)",
